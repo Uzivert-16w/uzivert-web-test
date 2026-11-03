@@ -66,4 +66,5 @@ $('e-cancel').onclick = () => $('ed').classList.add('hide');
 $('e-copy').onclick = (e) => copyText($('e-ls').textContent, e.target);
 async function verif() { try { const v = await api('/api/admin/verificados'); $('vcount').textContent = v.length + ' cuenta(s) verificada(s).'; $('vpre').textContent = v.map((x) => `${x.name} (${x.id}) - ${x.fecha.slice(0, 10)}`).join('\n') || '(vacio)'; } catch {} }
 $('vlist').onclick = () => $('vpre').classList.toggle('hide');
+$('diag').onclick = async () => { const p = $('dpre'); p.classList.remove('hide'); p.textContent = 'Probando...'; try { p.textContent = JSON.stringify(await api('/api/admin/diag'), null, 2); } catch (e) { p.textContent = e.message; } };
 boot();
