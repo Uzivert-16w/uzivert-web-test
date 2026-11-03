@@ -18,12 +18,14 @@
     </div>
     <div class="card hide" id="ed">
       <h3 id="ed-t">Nuevo script</h3>
-      <div class="two"><div><label for="e-name">Nombre</label><input id="e-name" maxlength="60"></div><div><label for="e-slug">Slug (link)</label><input id="e-slug" maxlength="40" placeholder="mm2-hub"></div></div>
-      <div class="two"><div><label for="e-game">Juego</label><input id="e-game" maxlength="60"></div><div><label for="e-ver">Version</label><input id="e-ver" maxlength="20" placeholder="v1.0"></div></div>
-      <label for="e-desc">Descripcion</label><input id="e-desc" maxlength="300">
-      <label for="e-estado">Estado</label><select id="e-estado"><option value="activo">Activo (disponible por link)</option><option value="oculto">Oculto (el link da 404)</option></select>
-      <label for="e-file">Subir archivo .lua / .txt (o pega el codigo abajo)</label><input id="e-file" type="file" accept=".lua,.txt,text/plain">
-      <label for="e-code">Codigo</label><textarea class="code-ed" id="e-code" spellcheck="false"></textarea>
+      <label for="e-name">Nombre</label><input id="e-name" maxlength="60" placeholder="Ej: MM2 Hub">
+      <label for="e-code">Loader (pega aqui tu loadstring o tu script)</label><textarea class="code-ed" id="e-code" spellcheck="false" placeholder='loadstring(game:HttpGet("https://..."))()'></textarea>
+      <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--sub);font-size:14px">Opciones (no son necesarias)</summary>
+        <div class="two"><div><label for="e-slug">Nombre del link (se crea solo)</label><input id="e-slug" maxlength="40" placeholder="mm2-hub"></div><div><label for="e-ver">Version</label><input id="e-ver" maxlength="20" placeholder="v1.0"></div></div>
+        <div class="two"><div><label for="e-game">Juego</label><input id="e-game" maxlength="60"></div><div><label for="e-desc">Descripcion</label><input id="e-desc" maxlength="300"></div></div>
+        <label for="e-estado">Estado</label><select id="e-estado"><option value="activo">Activo (disponible por link)</option><option value="oculto">Oculto (el link da 404)</option></select>
+        <label for="e-file">O subir un archivo .lua / .txt</label><input id="e-file" type="file" accept=".lua,.txt,text/plain">
+      </details>
       <div id="e-link" class="hide"><label>Loadstring</label><pre class="ls" id="e-ls"></pre><div class="row" style="margin-top:8px"><button class="ghost" id="e-copy">Copiar loadstring</button></div></div>
       <div class="row"><button id="e-save">Guardar</button><button class="ghost" id="e-cancel">Cerrar</button></div><div class="msg" id="em"></div>
     </div>
