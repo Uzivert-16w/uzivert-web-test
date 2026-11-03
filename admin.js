@@ -1,6 +1,7 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 let editing = null;
+let known = [];
 const base = location.origin;
 function lsFor(slug) { return `loadstring(game:HttpGet("${base}/s/${slug}"))()`; }
 
@@ -18,7 +19,7 @@ $('out').addEventListener('click', async () => { await api('/api/admin/logout', 
 
 function td(text) { const t = document.createElement('td'); t.textContent = text || '-'; return t; }
 async function refresh() {
-  const list = await api('/api/admin/scripts');
+  const list = await api('/api/admin/scripts'); known = list.map((s) => s.slug);
   const body = $('rows'); body.textContent = '';
   $('empty').classList.toggle('hide', list.length > 0);
   list.forEach((s) => {
@@ -30,6 +31,14 @@ async function refresh() {
     const b2 = document.createElement('button'); b2.className = 'danger'; b2.textContent = 'Borrar'; b2.style.marginLeft = '6px'; b2.onclick = () => del(s);
     ac.append(b1, b2); tr.append(ac); body.append(tr);
   });
+}
+function makeSlug() {
+  let s = ($('e-slug').value || $('e-name').value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36);
+  if (s.length < 2) return '';
+  let out = s, n = 2;
+  while (known.includes(out)) out = s + '-' + n++;
+  $('e-slug').value = out;
+  return out;
 }
 function clearEd() { ['e-name', 'e-slug', 'e-game', 'e-ver', 'e-desc', 'e-code'].forEach((i) => ($(i).value = '')); $('e-estado').value = 'activo'; $('e-file').value = ''; $('em').className = 'msg'; }
 function showLink(slug) { $('e-link').classList.remove('hide'); $('e-ls').textContent = lsFor(slug); }
@@ -51,10 +60,11 @@ $('e-file').addEventListener('change', async () => {
   if (f.size > 1_000_000) { show($('em'), 'El archivo supera 1 MB.', false); return; }
   $('e-code').value = await f.text();
   if (!$('e-name').value) $('e-name').value = f.name.replace(/\.[^.]+$/, '');
-  if (!$('e-slug').value && !editing) $('e-slug').value = f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 });
 $('e-save').onclick = async () => {
-  const slug = (editing || $('e-slug').value).trim();
+  const slug = editing || makeSlug();
+  if (!slug) { show($('em'), 'Pon un nombre para el script.', false); return; }
+  if (!$('e-code').value.trim()) { show($('em'), 'Pega el loader o el script.', false); return; }
   const b = $('e-save'); b.disabled = true;
   try {
     await api('/api/admin/scripts/' + encodeURIComponent(slug), { method: 'PUT', body: { name: $('e-name').value, game: $('e-game').value, version: $('e-ver').value, description: $('e-desc').value, estado: $('e-estado').value, code: $('e-code').value } });
