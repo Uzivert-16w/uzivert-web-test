@@ -25,10 +25,11 @@ function githubStore({ token, repo, branch, dir, api }) {
   const url = (p) => `${base}/${dir ? dir + '/' : ''}${p.split('/').map(encodeURIComponent).join('/')}`;
   let queue = Promise.resolve();               // serializa escrituras para evitar conflictos de sha
   const enqueue = (fn) => (queue = queue.then(fn, fn));
+  const fail = async (what, r) => { let m = ''; try { m = (await r.json()).message || ''; } catch {} return new Error(`${what} ${r.status}${m ? ' - ' + m : ''}`); };
   async function getMeta(p) {
     const r = await fetch(`${url(p)}?ref=${encodeURIComponent(branch)}`, { headers });
     if (r.status === 404) return null;
-    if (!r.ok) throw new Error(`GitHub ${r.status}`);
+    if (!r.ok) throw await fail('GitHub', r);
     return r.json();
   }
   return {
@@ -45,8 +46,14 @@ function githubStore({ token, repo, branch, dir, api }) {
         const m = await getMeta(p);
         const body = { message: `uzivert-web: ${p}`, content: Buffer.from(text, 'utf8').toString('base64'), branch };
         if (m && m.sha) body.sha = m.sha;
-        const r = await fetch(url(p), { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!r.ok) throw new Error(`GitHub PUT ${r.status}`);
+        const put = (bd) => fetch(url(p), { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(bd) });
+        let r = await put(body);
+        if (!r.ok && [404, 409, 422].includes(r.status) && !body.sha) {
+          // repo vacio (sin commits): GitHub no acepta "branch" en el primer archivo; reintenta sin rama
+          const e = await fail('GitHub PUT', r);
+          if (/branch|empty/i.test(e.message)) { const { branch: _b, ...sinRama } = body; r = await put(sinRama); } else throw e;
+        }
+        if (!r.ok) throw await fail('GitHub PUT', r);
       });
     },
     remove(p) {
@@ -54,7 +61,7 @@ function githubStore({ token, repo, branch, dir, api }) {
         const m = await getMeta(p);
         if (!m || !m.sha) return;
         const r = await fetch(url(p), { method: 'DELETE', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: `uzivert-web: borrar ${p}`, sha: m.sha, branch }) });
-        if (!r.ok) throw new Error(`GitHub DELETE ${r.status}`);
+        if (!r.ok) throw await fail('GitHub DELETE', r);
       });
     },
   };
