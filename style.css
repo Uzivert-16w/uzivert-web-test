@@ -53,3 +53,4 @@ footer{text-align:center;color:#5c5f67;font-size:13px;padding:24px}
 .tag{font-size:12px;padding:3px 9px;border-radius:10px;background:#10261a;color:var(--ok)}.tag.off{background:#2a2110;color:#ffb23e}
 textarea.code-ed{min-height:300px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre;overflow:auto}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
+@media(max-width:560px){.tbl th:nth-child(2),.tbl td:nth-child(2),.tbl th:nth-child(3),.tbl td:nth-child(3){display:none}.tbl td button{padding:9px 12px;font-size:13px}}
