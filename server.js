@@ -106,7 +106,10 @@ app.post('/api/soporte', needJson, async (req, res) => {
 // ---------- VERIFICACION (codigo en la descripcion de Roblox) ----------
 const pending = new Map();                                         // token -> {code,id,name,exp}
 setInterval(() => { const n = Date.now(); for (const [k, v] of pending) if (v.exp < n) pending.delete(k); }, 60e3).unref();
-const newCode = () => 'UZV-' + Array.from(crypto.randomBytes(8), (x) => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[x % 31]).join('');
+// Codigo de palabras comunes: Roblox censura (####) los codigos de letras al azar.
+const PALABRAS = ['apple','banana','cherry','orange','lemon','mango','melon','peach','tiger','panda','koala','eagle','shark','whale','zebra','rabbit','turtle','monkey','dolphin','penguin','forest','river','mountain','ocean','island','desert','cloud','rainbow','sunset','planet','rocket','castle','bridge','garden','window','guitar','piano','camera','pencil','candle','mirror','blanket','pillow','basket','bottle','ladder','ticket','jacket','pocket'];
+const newCode = () => Array.from({ length: 5 }, () => PALABRAS[crypto.randomInt(PALABRAS.length)]).join(' ');
+const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ');
 
 async function loadVerified() { try { return JSON.parse((await store.read('verificados.json')) || '[]'); } catch { return []; } }
 
@@ -137,7 +140,7 @@ app.post('/api/verificar/confirmar', needJson, async (req, res) => {
     const r = await fetch(`${ROBLOX_USERS}/v1/users/${p.id}`);
     if (!r.ok) throw new Error('roblox ' + r.status);
     const d = await r.json();
-    if (!String(d.description || '').includes(p.code)) return res.status(400).json({ error: 'No encontramos el codigo en tu descripcion. Guarda el perfil y prueba otra vez.' });
+    if (!norm(d.description).includes(p.code)) return res.status(400).json({ error: 'No encontramos el codigo en tu descripcion. Guarda el perfil y prueba otra vez.' });
     pending.delete(clean(req.body.token, 60));
     const list = await loadVerified();
     if (!list.some((v) => v.id === p.id)) {
