@@ -21,7 +21,8 @@ if (!WEBHOOK_SOPORTE) console.warn('[aviso] DISCORD_WEBHOOK_SOPORTE no definido:
 const store = env.GITHUB_TOKEN && env.GITHUB_REPO
   ? githubStore({ api: env.GITHUB_API, token: env.GITHUB_TOKEN, repo: env.GITHUB_REPO, branch: env.GITHUB_BRANCH || 'main', dir: env.GITHUB_DIR || 'uzivert-web' })
   : localStore(env.DATA_DIR || path.join(__dirname, 'data'));
-console.log(`[almacenamiento] ${store.kind}`);
+console.log(`[almacenamiento] ${store.kind} | node ${process.version} | fetch: ${typeof fetch}`);
+if (typeof fetch !== 'function') console.error('[ERROR] Esta version de Node no tiene fetch. Usa Node 18 o mas nuevo (variable NODE_VERSION=20 en Render).');
 
 // ---------- utilidades ----------
 const b64u = (b) => Buffer.from(b).toString('base64url');
@@ -99,7 +100,7 @@ app.post('/api/soporte', needJson, async (req, res) => {
   try {
     await postWebhook(WEBHOOK_SOPORTE, { username: SITE_NAME + ' | Soporte', embeds: [{ title: 'Nuevo mensaje de soporte', description: esc(mensaje), color: 0x8e94a3, fields, timestamp: new Date().toISOString() }] });
     res.json({ ok: true });
-  } catch (e) { console.error('soporte:', e.message); res.status(502).json({ error: 'No se pudo enviar el mensaje. Intenta de nuevo mas tarde.' }); }
+  } catch (e) { console.error('soporte:', e.message, e.cause ? (e.cause.code || e.cause.message) : ''); res.status(502).json({ error: 'No se pudo enviar el mensaje. Intenta de nuevo mas tarde.' }); }
 });
 
 // ---------- VERIFICACION (codigo en la descripcion de Roblox) ----------
@@ -124,7 +125,7 @@ app.post('/api/verificar/iniciar', needJson, async (req, res) => {
     const code = newCode();
     pending.set(token, { code, id: u.id, name: u.name, exp: Date.now() + 15 * 60e3 });
     res.json({ token, code, usuario: u.name, minutos: 15 });
-  } catch (e) { console.error('verif iniciar:', e.message); res.status(502).json({ error: 'No pudimos consultar Roblox. Intenta de nuevo.' }); }
+  } catch (e) { console.error('verif iniciar:', e.message, e.cause ? (e.cause.code || e.cause.message) : ''); res.status(502).json({ error: 'No pudimos consultar Roblox. Intenta de nuevo.' }); }
 });
 
 app.post('/api/verificar/confirmar', needJson, async (req, res) => {
@@ -218,6 +219,16 @@ app.delete('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
     cache.delete(req.params.slug);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'No se pudo borrar.' }); }
+});
+// Diagnostico: prueba desde el servidor si llega a Roblox, a Discord y al almacenamiento.
+app.get('/api/admin/diag', adminOnly, async (req, res) => {
+  const out = { node: process.version, fetch: typeof fetch, almacenamiento: store.kind, webhook_soporte_definido: !!WEBHOOK_SOPORTE, webhook_verif_definido: !!WEBHOOK_VERIF, github_definido: !!(env.GITHUB_TOKEN && env.GITHUB_REPO) };
+  if (typeof fetch !== 'function') return res.json(out);
+  const probe = async (name, fn) => { try { const r = await fn(); out[name] = r; } catch (e) { out[name] = 'ERROR: ' + (e.cause && e.cause.code || e.message); } };
+  await probe('roblox', async () => { const r = await fetch(`${ROBLOX_USERS}/v1/usernames/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usernames: ['Roblox'], excludeBannedUsers: true }) }); return 'HTTP ' + r.status; });
+  await probe('discord_webhook', async () => { if (!WEBHOOK_SOPORTE) return 'no definido'; const r = await fetch(WEBHOOK_SOPORTE); return r.status === 200 ? 'OK (webhook valido)' : 'HTTP ' + r.status + (r.status === 404 ? ' (URL invalida o webhook borrado)' : r.status === 429 ? ' (Discord limita la IP de Render)' : ''); });
+  await probe('almacenamiento_lectura', async () => { await store.read('scripts/index.json'); return 'OK'; });
+  res.json(out);
 });
 app.get('/api/admin/verificados', adminOnly, async (req, res) => res.json(await loadVerified()));
 
