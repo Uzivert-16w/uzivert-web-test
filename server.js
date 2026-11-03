@@ -212,7 +212,7 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
     await saveIndex(list);
     cache.delete(slug);
     res.json({ ok: true, script: meta });
-  } catch (e) { console.error('guardar script:', e.message); res.status(500).json({ error: 'No se pudo guardar en el almacenamiento.' }); }
+  } catch (e) { console.error('guardar script:', e.message); res.status(500).json({ error: 'No se pudo guardar: ' + e.message }); }
 });
 app.delete('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   if (!SLUG.test(req.params.slug)) return res.status(400).json({ error: 'Slug invalido' });
@@ -230,6 +230,17 @@ app.get('/api/admin/diag', adminOnly, async (req, res) => {
   const probe = async (name, fn) => { try { const r = await fn(); out[name] = r; } catch (e) { out[name] = 'ERROR: ' + (e.cause && e.cause.code || e.message); } };
   await probe('roblox', async () => { const r = await fetch(`${ROBLOX_USERS}/v1/usernames/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usernames: ['Roblox'], excludeBannedUsers: true }) }); return 'HTTP ' + r.status; });
   await probe('discord_webhook', async () => { if (!WEBHOOK_SOPORTE) return 'no definido'; const r = await fetch(WEBHOOK_SOPORTE); return r.status === 200 ? 'OK (webhook valido)' : 'HTTP ' + r.status + (r.status === 404 ? ' (URL invalida o webhook borrado)' : r.status === 429 ? ' (Discord limita la IP de Render)' : ''); });
+  if (env.GITHUB_TOKEN && env.GITHUB_REPO) await probe('github_repo', async () => {
+    const r = await fetch(`${env.GITHUB_API || 'https://api.github.com'}/repos/${env.GITHUB_REPO}`, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'uzivert-web' } });
+    if (r.status === 401) return 'HTTP 401: el token es invalido o vencio';
+    if (r.status === 404) return 'HTTP 404: el repo no existe o el token no tiene acceso a ese repo (revisa GITHUB_REPO y los permisos del token)';
+    if (!r.ok) return 'HTTP ' + r.status;
+    const d = await r.json();
+    const push = d.permissions ? d.permissions.push : undefined;
+    return `OK repo ${d.full_name}, rama por defecto: ${d.default_branch}${push === false ? ' | SIN permiso de escritura' : ''}${d.default_branch !== (env.GITHUB_BRANCH || 'main') ? ` | OJO: GITHUB_BRANCH debe ser ${d.default_branch}` : ''}`;
+  });
+  else out.github_aviso = 'Falta GITHUB_TOKEN o GITHUB_REPO: se esta guardando en disco local (se pierde al reiniciar).';
+  await probe('almacenamiento_escritura', async () => { await store.write('diagnostico.txt', 'prueba ' + new Date().toISOString()); return 'OK: se escribio ' + (store.kind === 'github' ? `${env.GITHUB_DIR || 'uzivert-web'}/diagnostico.txt en ${env.GITHUB_REPO}` : 'diagnostico.txt en disco local'); });
   await probe('almacenamiento_lectura', async () => { await store.read('scripts/index.json'); return 'OK'; });
   res.json(out);
 });
