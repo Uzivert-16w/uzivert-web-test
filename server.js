@@ -239,7 +239,25 @@ app.get('/s/:slug', async (req, res) => {
   } catch (e) { res.status(502).send('-- error temporal'); }
 });
 
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+// Archivos de la pagina: carpeta public/, o (si subiste todo suelto en la raiz) solo estos archivos permitidos.
+const fs = require('fs');
+const PUBLIC_DIR = path.join(__dirname, 'public');
+if (fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
+  app.use(express.static(PUBLIC_DIR));
+} else {
+  const PAGINA = new Set(['index.html', 'admin.html', 'style.css', 'app.js', 'admin.js', 'common.js']);
+  const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8' };
+  console.log('[aviso] No hay carpeta public/: sirviendo los archivos de la pagina desde la raiz.');
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    let n = req.path === '/' ? 'index.html' : req.path === '/admin' ? 'admin.html' : req.path.slice(1);
+    if (n === 'index') n = 'index.html';
+    if (!PAGINA.has(n) || !fs.existsSync(path.join(__dirname, n))) return next();
+    res.setHeader('Content-Type', MIME[path.extname(n)]);
+    res.setHeader('Cache-Control', 'no-cache');
+    fs.createReadStream(path.join(__dirname, n)).pipe(res);
+  });
+}
 app.use('/api', (req, res) => res.status(404).json({ error: 'No encontrado' }));
 app.use((err, req, res, next) => { if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Demasiado grande' }); if (err instanceof SyntaxError) return res.status(400).json({ error: 'JSON invalido' }); console.error(err); res.status(500).json({ error: 'Error interno' }); });
 
