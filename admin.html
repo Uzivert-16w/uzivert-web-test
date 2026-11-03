@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Admin | Uzivert Hub</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<canvas id="stars"></canvas>
+<header><div class="brand"><div class="orb"></div>UZIVERT ADMIN</div><nav><a href="/">Ver sitio</a><a id="out" class="hide">Salir</a></nav></header>
+<main style="max-width:920px">
+  <section id="login" class="card" style="max-width:420px;margin:40px auto">
+    <h3>Acceso privado</h3><label for="key">Clave de administrador</label><input id="key" type="password" autocomplete="current-password">
+    <div class="row"><button id="go">Entrar</button></div><div class="msg" id="lm"></div>
+  </section>
+  <section id="panel" class="hide">
+    <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3>Mis scripts</h3><button id="new">Nuevo script</button></div>
+      <p id="stor" style="margin:4px 0 10px"></p>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>NOMBRE</th><th>JUEGO</th><th>VERSION</th><th>ESTADO</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+      <p id="empty" class="hide" style="margin-top:12px">Todavia no subiste ningun script.</p>
+    </div>
+    <div class="card hide" id="ed">
+      <h3 id="ed-t">Nuevo script</h3>
+      <div class="two"><div><label for="e-name">Nombre</label><input id="e-name" maxlength="60"></div><div><label for="e-slug">Slug (link)</label><input id="e-slug" maxlength="40" placeholder="mm2-hub"></div></div>
+      <div class="two"><div><label for="e-game">Juego</label><input id="e-game" maxlength="60"></div><div><label for="e-ver">Version</label><input id="e-ver" maxlength="20" placeholder="v1.0"></div></div>
+      <label for="e-desc">Descripcion</label><input id="e-desc" maxlength="300">
+      <label for="e-estado">Estado</label><select id="e-estado"><option value="activo">Activo (disponible por link)</option><option value="oculto">Oculto (el link da 404)</option></select>
+      <label for="e-file">Subir archivo .lua / .txt (o pega el codigo abajo)</label><input id="e-file" type="file" accept=".lua,.txt,text/plain">
+      <label for="e-code">Codigo</label><textarea class="code-ed" id="e-code" spellcheck="false"></textarea>
+      <div id="e-link" class="hide"><label>Loadstring</label><pre class="ls" id="e-ls"></pre><div class="row" style="margin-top:8px"><button class="ghost" id="e-copy">Copiar loadstring</button></div></div>
+      <div class="row"><button id="e-save">Guardar</button><button class="ghost" id="e-cancel">Cerrar</button></div><div class="msg" id="em"></div>
+    </div>
+    <div class="card"><h3>Cuentas verificadas</h3><p id="vcount">...</p><div class="row"><button class="ghost" id="vlist">Ver lista</button></div><pre class="ls hide" id="vpre" style="margin-top:10px;max-height:260px;overflow:auto"></pre></div>
+  </section>
+</main>
+<script src="/common.js"></script><script src="/admin.js"></script>
+</body></html>

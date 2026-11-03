@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzivert Hub</title><meta name="description" content="Uzivert Hub: scripts para Roblox, soporte y verificacion de cuenta.">
+<link rel="stylesheet" href="/style.css"></head>
+<body>
+<canvas id="stars"></canvas>
+<header>
+  <div class="brand"><div class="orb"></div>UZIVERT HUB</div>
+  <nav id="nav"><a data-p="inicio" class="on">Inicio</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a><a id="dc" target="_blank" rel="noopener">Discord</a></nav>
+</header>
+<main>
+  <section class="page on" id="p-inicio">
+    <div class="hero"><div class="orb"></div><h1>UZIVERT HUB</h1><p class="lead">Scripts para Roblox. Todo en un solo lugar.</p>
+      <div class="row" style="justify-content:center"><button data-go="verificar">Verificar mi cuenta</button><button class="ghost" data-go="soporte">Contactar soporte</button></div></div>
+    <div class="grid" style="margin-top:34px">
+      <div class="card"><h3>API segura</h3><p>Conexiones cifradas y protegidas.</p></div>
+      <div class="card"><h3>Anti stealers</h3><p>Proteccion contra robo de cuentas.</p></div>
+      <div class="card"><h3>Anti scam</h3><p>Verificacion oficial de cuentas.</p></div>
+    </div>
+  </section>
+
+  <section class="page" id="p-verificar">
+    <h2>Verificar cuenta</h2><p class="lead" style="font-size:16px;margin-top:6px">Demuestra que tu cuenta de Roblox es tuya y obtén el script oficial.</p>
+    <div class="card" id="v-ok" style="display:none">
+      <h3>Cuenta verificada: <span id="v-name"></span></h3><p>Este es el loadstring oficial. Copialo y pegalo en tu ejecutor.</p>
+      <pre class="ls" id="v-ls">Cargando...</pre>
+      <div class="row"><button id="v-copy">Copiar script</button><button class="ghost" id="v-out">Cerrar sesion</button></div>
+    </div>
+    <div class="card" id="v-s1">
+      <h3>Paso 1: tu usuario de Roblox</h3>
+      <label for="v-user">Usuario</label><input id="v-user" maxlength="20" autocomplete="off" placeholder="TuUsuario">
+      <div class="row"><button id="v-start">Obtener codigo</button></div>
+    </div>
+    <div class="card hide" id="v-s2">
+      <h3>Paso 2: pega el codigo en tu descripcion</h3>
+      <div class="code" id="v-code"></div>
+      <ol class="steps"><li>Abre tu perfil de Roblox y entra a <b>Editar perfil</b>.</li><li>Pega el codigo en <b>Acerca de</b> y guarda.</li><li>Vuelve aqui y toca <b>Verificar</b>. Despues puedes borrar el codigo.</li></ol>
+      <div class="row"><button id="v-check">Verificar</button><button class="ghost" id="v-cancel">Cancelar</button></div>
+    </div>
+    <div class="msg" id="v-msg"></div>
+  </section>
+
+  <section class="page" id="p-soporte">
+    <h2>Soporte</h2><p class="lead" style="font-size:16px;margin-top:6px">Cuéntanos tu problema o idea y el equipo lo recibe al instante.</p>
+    <form class="card" id="s-form" autocomplete="off">
+      <label for="s-asunto">Asunto</label>
+      <select id="s-asunto"><option>Ayuda</option><option>Bug</option><option>Sugerencia</option><option value="Apelacion">Apelación</option><option>Otro</option></select>
+      <label for="s-contacto">Como te contactamos (Discord o Roblox, opcional)</label><input id="s-contacto" maxlength="100" placeholder="usuario#0000 / TuUsuarioRoblox">
+      <label for="s-msg">Mensaje</label><textarea id="s-msg" maxlength="1500" placeholder="Explica con detalle que paso..."></textarea>
+      <input class="hp" id="s-web" tabindex="-1" aria-hidden="true" autocomplete="off">
+      <div class="row"><button type="submit" id="s-send">Enviar mensaje</button><span id="s-count" style="color:var(--sub);font-size:13px;align-self:center">0/1500</span></div>
+      <div class="msg" id="s-res"></div>
+    </form>
+  </section>
+</main>
+<footer>Uzivert Hub</footer>
+<script src="/common.js"></script><script src="/app.js"></script>
+</body></html>
