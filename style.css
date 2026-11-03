@@ -34,7 +34,7 @@ button.danger{background:#3a1218;color:#ff9aa3;border:1px solid #5a1d26}
 .msg{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:14px;display:none}
 .msg.ok{display:block;background:#0e2318;color:var(--ok);border:1px solid #1d4a2f}
 .msg.err{display:block;background:#2a1014;color:var(--err);border:1px solid #55202a}
-.code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#08090d;border:1px dashed #3a3d48;border-radius:12px;padding:16px;font-size:24px;letter-spacing:3px;text-align:center;margin:12px 0;user-select:all}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#08090d;border:1px dashed #3a3d48;border-radius:12px;padding:16px;font-size:20px;letter-spacing:1px;line-height:1.5;word-spacing:4px;text-align:center;margin:12px 0;user-select:all}
 pre.ls{font-family:ui-monospace,Menlo,Consolas,monospace;background:#08090d;border:1px solid var(--line);border-radius:12px;padding:14px;font-size:13px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;user-select:all}
 ol.steps{margin:10px 0 0 20px;color:var(--sub);font-size:15px}ol.steps li{margin:6px 0}ol.steps b{color:var(--tx)}
 .hide{display:none!important}
