@@ -4,10 +4,10 @@ html,body{min-height:100%}
 body{background:var(--bg);color:var(--tx);font:16px/1.55 "Inter","Segoe UI",system-ui,-apple-system,Arial,sans-serif;position:relative;overflow-x:hidden}
 canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none}
 header,main,footer{position:relative;z-index:1}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);background:rgba(5,5,7,.7);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 12px;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(5,5,7,.78);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
 .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:2px;font-size:17px}
-nav{display:flex;gap:6px;flex-wrap:wrap}
-nav a{color:var(--sub);text-decoration:none;padding:8px 14px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
+nav{display:flex;gap:4px;order:3;width:100%}
+nav a{flex:1;text-align:center;white-space:nowrap;color:var(--sub);text-decoration:none;padding:9px 4px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer}
 nav a:hover{color:var(--tx);background:#12131a}
 nav a.on{background:var(--ac);color:#000}
 main{max-width:760px;margin:0 auto;padding:36px 18px 60px}
@@ -76,3 +76,24 @@ ul.ck.bad li:before{content:"\2715";color:var(--err)}ul.ck.ok li:before{content:
 .sc{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
 .sc h3{font-size:19px}.sc .cp{margin-top:0}
 .mini{padding:5px 10px;font-size:12px;border-radius:8px}
+
+.brand{cursor:pointer}
+.burger{order:2;display:flex;flex-direction:column;justify-content:center;align-items:stretch;gap:5px;width:44px;height:44px;padding:0 11px;background:#12131a;border:1px solid var(--line);border-radius:12px}
+.burger span{display:block;height:2px;background:var(--tx);border-radius:2px;transition:.2s}
+.burger:hover{filter:none;background:#181a22}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+.overlay.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(320px,84vw);background:#0a0b10;border-left:1px solid var(--line);z-index:21;transform:translateX(105%);transition:transform .28s ease;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgba(0,0,0,.6)}
+.drawer.on{transform:none}
+.dr-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dr-head .brand{font-size:15px}
+.close{width:40px;height:40px;padding:0;font-size:26px;line-height:1;background:#12131a;color:var(--tx);border:1px solid var(--line);border-radius:12px}
+.dr-list{padding:12px;display:flex;flex-direction:column;gap:6px;flex:1;overflow-y:auto}
+.dr-list a{display:block;padding:14px 16px;border-radius:12px;background:#10111a;border:1px solid var(--line);color:var(--tx);text-decoration:none;font-weight:600;cursor:pointer}
+.dr-list a:hover{background:#181a22}
+.dr-foot{padding:16px;border-top:1px solid var(--line);font-size:13px;color:var(--sub)}
+.dr-foot b{display:block;color:var(--tx);font-size:18px;margin-top:2px}
+.terms h3{font-size:16px;margin:16px 0 4px}.terms h3:first-child{margin-top:0}.terms p{line-height:1.6}
+a.btn.ghost{background:#14151c;color:var(--tx);border:1px solid var(--line)}
+footer{padding:28px 16px 34px;line-height:1.5}
+@media(min-width:760px){header{flex-wrap:nowrap}nav{order:2;width:auto;flex:1;justify-content:center;max-width:520px;margin:0 auto}nav a{padding:9px 16px;font-size:14px}.burger{order:3}}
