@@ -11,10 +11,13 @@ const ADMIN_KEY = env.ADMIN_KEY || '';
 const WEBHOOK_SOPORTE = env.DISCORD_WEBHOOK_SOPORTE || '';
 const WEBHOOK_VERIF = env.DISCORD_WEBHOOK_VERIFICACIONES || WEBHOOK_SOPORTE;
 const LOADSTRING = env.LOADSTRING || 'loadstring(game:HttpGet("https://uzivert-api.vercel.app/loader"))()';
+const API_URL = (env.UZIVERT_API_URL || 'https://uzivert-api.onrender.com').replace(/\/$/, '');
+const WEB_SECRET = env.WEB_SECRET || '';
 const DISCORD_INVITE = env.DISCORD_INVITE || 'https://discord.gg/vHhERWcbXe';
 const ROBLOX_USERS = (env.ROBLOX_USERS_API || 'https://users.roblox.com').replace(/\/$/, '');
 let SESSION_SECRET = env.SESSION_SECRET;
 if (!SESSION_SECRET) { SESSION_SECRET = crypto.randomBytes(32).toString('hex'); console.warn('[aviso] SESSION_SECRET no definido: las sesiones se pierden al reiniciar.'); }
+if (!WEB_SECRET) console.warn('[aviso] WEB_SECRET no definido: las verificaciones de la pagina NO se registran en la API del hub (el loader no las reconoce).');
 if (!ADMIN_KEY) console.warn('[aviso] ADMIN_KEY no definida: el panel admin queda deshabilitado.');
 if (!WEBHOOK_SOPORTE) console.warn('[aviso] DISCORD_WEBHOOK_SOPORTE no definido: el soporte no podra enviar mensajes.');
 
@@ -108,6 +111,19 @@ const pending = new Map();                                         // token -> {
 setInterval(() => { const n = Date.now(); for (const [k, v] of pending) if (v.exp < n) pending.delete(k); }, 60e3).unref();
 // Codigo de palabras comunes: Roblox censura (####) los codigos de letras al azar.
 const PALABRAS = ['apple','banana','cherry','orange','lemon','mango','melon','peach','tiger','panda','koala','eagle','shark','whale','zebra','rabbit','turtle','monkey','dolphin','penguin','forest','river','mountain','ocean','island','desert','cloud','rainbow','sunset','planet','rocket','castle','bridge','garden','window','guitar','piano','camera','pencil','candle','mirror','blanket','pillow','basket','bottle','ladder','ticket','jacket','pocket'];
+// Registra la cuenta en la API del hub (la misma base que usa el bot y el loader).
+async function registrarEnApi(p) {
+  if (!WEB_SECRET) return true;
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 60000);   // Render gratis puede tardar ~50 s en despertar
+  try {
+    const r = await fetch(`${API_URL}/api/verificar_web`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-web-secret': WEB_SECRET }, body: JSON.stringify({ roblox_id: p.id, roblox_user: p.name }), signal: ctl.signal });
+    const d = await r.json().catch(() => ({}));
+    if (!(r.ok && d.ok === true)) console.error('api verificar_web:', r.status, d.error || '');
+    return r.ok && d.ok === true;
+  } catch (e) { console.error('api verificar_web:', e.message); return false; }
+  finally { clearTimeout(to); }
+}
 const newCode = () => Array.from({ length: 5 }, () => PALABRAS[crypto.randomInt(PALABRAS.length)]).join(' ');
 const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ');
 
@@ -141,6 +157,7 @@ app.post('/api/verificar/confirmar', needJson, async (req, res) => {
     if (!r.ok) throw new Error('roblox ' + r.status);
     const d = await r.json();
     if (!norm(d.description).includes(p.code)) return res.status(400).json({ error: 'No encontramos el codigo en tu descripcion. Guarda el perfil y prueba otra vez.' });
+    if (!(await registrarEnApi(p))) return res.status(502).json({ error: 'Tu cuenta es correcta, pero no pudimos registrarla en el servidor del hub. Espera un minuto y toca Verificar de nuevo.' });
     pending.delete(clean(req.body.token, 60));
     const list = await loadVerified();
     if (!list.some((v) => v.id === p.id)) {
@@ -240,6 +257,11 @@ app.get('/api/admin/diag', adminOnly, async (req, res) => {
     return `OK repo ${d.full_name}, rama por defecto: ${d.default_branch}${push === false ? ' | SIN permiso de escritura' : ''}${d.default_branch !== (env.GITHUB_BRANCH || 'main') ? ` | OJO: GITHUB_BRANCH debe ser ${d.default_branch}` : ''}`;
   });
   else out.github_aviso = 'Falta GITHUB_TOKEN o GITHUB_REPO: se esta guardando en disco local (se pierde al reiniciar).';
+  await probe('api_hub', async () => {
+    if (!WEB_SECRET) return 'WEB_SECRET no definido: la verificacion NO se registra en la API';
+    const r = await fetch(`${API_URL}/api/verificar_web`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-web-secret': WEB_SECRET }, body: JSON.stringify({}) });
+    return r.status === 400 ? 'OK (la API acepta el secreto)' : r.status === 401 ? 'ERROR 401: el WEB_SECRET no coincide con el de la API' : r.status === 404 ? 'ERROR 404: la API todavia no tiene /api/verificar_web (sube el index.js nuevo)' : 'HTTP ' + r.status;
+  });
   await probe('almacenamiento_escritura', async () => { await store.write('diagnostico.txt', 'prueba ' + new Date().toISOString()); return 'OK: se escribio ' + (store.kind === 'github' ? `${env.GITHUB_DIR || 'uzivert-web'}/diagnostico.txt en ${env.GITHUB_REPO}` : 'diagnostico.txt en disco local'); });
   await probe('almacenamiento_lectura', async () => { await store.read('scripts/index.json'); return 'OK'; });
   res.json(out);
