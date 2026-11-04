@@ -60,7 +60,7 @@ $('v-start').addEventListener('click', async () => {
     const d = await api('/api/verificar/iniciar', { method: 'POST', body: { usuario: $('v-user').value.trim() } });
     token = d.token; $('v-code').textContent = d.code;
     $('v-s1').classList.add('hide'); $('v-s2').classList.remove('hide');
-    show(vmsg, `Codigo para ${d.usuario}. Vale por ${d.minutos} minutos.`, true);
+    show(vmsg, `Código para ${d.usuario}. Vale por ${d.minutos} minutos.`, true);
   } catch (e) { show(vmsg, e.message, false); }
   b.disabled = false;
 });
@@ -158,7 +158,7 @@ async function openTema(id) {
       box.append(c);
     });
     $('f-rform').classList.toggle('hide', t.cerrado);
-    if (t.cerrado) box.append(txt('p', 'Este tema esta cerrado.', 'nota'));
+    if (t.cerrado) box.append(txt('p', 'Este tema está cerrado.', 'nota'));
     $('f-rmsg').className = 'msg';
   } catch (e) { alert(e.message); showList(); }
 }
