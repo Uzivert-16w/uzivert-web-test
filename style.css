@@ -54,3 +54,25 @@ footer{text-align:center;color:#5c5f67;font-size:13px;padding:24px}
 textarea.code-ed{min-height:300px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre;overflow:auto}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
 @media(max-width:560px){.tbl th:nth-child(2),.tbl td:nth-child(2),.tbl th:nth-child(3),.tbl td:nth-child(3){display:none}.tbl td button{padding:9px 12px;font-size:13px}}
+
+.card.safe{border-color:#1d4a2f;background:linear-gradient(180deg,#0b1710,#0d0e14)}
+.card.safe h3{color:var(--ok);font-size:18px}
+.card.safe p{color:#c5d6cb;font-size:14px;margin:6px 0 10px}
+ul.ck{list-style:none;font-size:14px;margin:8px 0}ul.ck li{padding:4px 0 4px 26px;position:relative;color:#d6d9e0}
+ul.ck li:before{position:absolute;left:0;top:3px;font-weight:800}
+ul.ck.bad li:before{content:"\2715";color:var(--err)}ul.ck.ok li:before{content:"\2713";color:var(--ok)}
+.card.safe .warn{margin-top:12px;padding:10px 12px;border-radius:10px;background:#2a2110;color:#ffcf7a;border:1px solid #4a3a16}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{padding:7px 14px;border-radius:20px;background:#12131a;border:1px solid var(--line);color:var(--sub);font-size:14px;font-weight:600;cursor:pointer}
+.chip.on{background:var(--ac);color:#000;border-color:var(--ac)}
+.tema{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;color:var(--tx);cursor:pointer;font:inherit}
+.tema:hover{border-color:#4a4e5a;filter:none}
+.tema b{display:block;font-size:17px;margin-bottom:4px}
+.meta{font-size:12px;color:var(--sub)}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;background:#1b1b1e;color:#b9bcc4;margin-right:6px}
+.badge.staff{background:#e8eaef;color:#000}.badge.pin{background:#2a2110;color:#ffb23e}
+.post{white-space:pre-wrap;word-break:break-word;margin:10px 0 4px;font-size:15px}
+.nota{font-size:12px;color:var(--sub);margin-top:6px}
+.sc{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.sc h3{font-size:19px}.sc .cp{margin-top:0}
+.mini{padding:5px 10px;font-size:12px;border-radius:8px}
