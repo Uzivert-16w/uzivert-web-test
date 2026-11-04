@@ -82,7 +82,7 @@ const noStore = (res) => res.setHeader('Cache-Control', 'no-store');
 const needJson = (req, res, next) => (req.is('application/json') && req.get('X-Requested-With') === 'uz' ? next() : res.status(400).json({ error: 'Peticion invalida' }));
 const ip = (req) => req.ip || 'x';
 
-app.get('/api/config', (req, res) => res.json({ nombre: SITE_NAME, discord: DISCORD_INVITE, soporte: !!WEBHOOK_SOPORTE }));
+app.get('/api/config', (req, res) => res.json({ nombre: SITE_NAME, discord: DISCORD_INVITE, soporte: !!WEBHOOK_SOPORTE, version: env.SITE_VERSION || 'v1.0' }));
 
 // ---------- SOPORTE -> webhook ----------
 const ASUNTOS = ['Ayuda', 'Bug', 'Sugerencia', 'Apelacion', 'Otro'];
