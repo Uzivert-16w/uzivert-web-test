@@ -6,9 +6,21 @@
 <body>
 <canvas id="stars"></canvas>
 <header>
-  <div class="brand"><div class="orb"></div>UZIVERT HUB</div>
-  <nav id="nav"><a data-p="inicio" class="on">Inicio</a><a data-p="scripts">Scripts</a><a data-p="foro">Foro</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a><a id="dc" target="_blank" rel="noopener">Discord</a></nav>
+  <div class="brand" id="brand" role="link" tabindex="0"><div class="orb"></div>UZIVERT HUB</div>
+  <button class="burger" id="menu-btn" aria-label="Abrir menu" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button>
+  <nav id="nav"><a data-p="inicio" class="on">Inicio</a><a data-p="scripts">Scripts</a><a data-p="foro">Foro</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a></nav>
 </header>
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Menu">
+  <div class="dr-head"><div class="brand"><div class="orb"></div>UZIVERT HUB</div><button class="close" id="menu-close" aria-label="Cerrar menu">&times;</button></div>
+  <div class="dr-list">
+    <a data-p="creador">Creador</a>
+    <a data-p="creditos">Creditos</a>
+    <a data-p="terminos">Terminos y condiciones</a>
+    <a id="dc" target="_blank" rel="noopener">Discord</a>
+  </div>
+  <div class="dr-foot"><div>Version de la pagina</div><b id="ver">v1.0</b><div style="margin-top:10px">Uzivert Hub. Todos los derechos reservados.</div></div>
+</aside>
 <main>
   <section class="page on" id="p-inicio">
     <div class="hero"><div class="orb"></div><h1>UZIVERT HUB</h1><p class="lead">Scripts para Roblox. Todo en un solo lugar.</p>
@@ -18,6 +30,38 @@
       <div class="card"><h3>Anti stealers</h3><p>Proteccion contra robo de cuentas.</p></div>
       <div class="card"><h3>Anti scam</h3><p>Verificacion oficial de cuentas.</p></div>
       <div class="card"><h3>Verificar es seguro</h3><p>Nunca te pedimos contrasena, PIN ni correo.</p></div>
+    </div>
+  </section>
+
+  <section class="page" id="p-creador">
+    <h2>Creador</h2><p class="lead" style="font-size:16px;margin-top:6px">Quien esta detras de Uzivert Hub.</p>
+    <div class="card"><h3>Uzivert</h3><p>Desarrollo y mantenimiento de todos los scripts y de esta pagina. Uzivert Hub es un proyecto independiente hecho para la comunidad de Roblox.</p></div>
+    <div class="card"><h3>Como se actualizan los scripts</h3>
+      <p>Los scripts se actualizan <b>cada vez que realmente hace falta</b>: cuando un juego cambia, cuando aparece un error o cuando hay una mejora que vale la pena.</p>
+      <p style="margin-top:10px">El unico script que se actualiza <b>cada semana</b> es el de <b>Murder Mystery 2 (MM2)</b>.</p>
+    </div>
+    <div class="card"><h3>Contacto</h3><p>Para dudas, errores o sugerencias usa la pestana Soporte o entra al Discord.</p><div class="row"><button data-go="soporte">Ir a Soporte</button><a class="btn ghost" id="dc2" target="_blank" rel="noopener">Abrir Discord</a></div></div>
+  </section>
+
+  <section class="page" id="p-creditos">
+    <h2>Creditos</h2><p class="lead" style="font-size:16px;margin-top:6px">Las personas y cosas que hacen posible Uzivert Hub.</p>
+    <div class="card"><h3>Desarrollo y diseno</h3><p>Uzivert: scripts, interfaz, pagina web, bot y servidor.</p></div>
+    <div class="card"><h3>Comunidad</h3><p>Gracias a todos los que prueban los scripts, reportan errores y dan ideas en el Discord. Sin ustedes el proyecto no avanza.</p></div>
+    <div class="card"><h3>Avisos</h3><p>Uzivert Hub no esta afiliado, asociado ni respaldado por Roblox Corporation. Roblox y los nombres de los juegos pertenecen a sus respectivos duenos.</p></div>
+    <div class="card"><h3>Version de la pagina</h3><p id="ver2">v1.0</p></div>
+  </section>
+
+  <section class="page" id="p-terminos">
+    <h2>Terminos y condiciones</h2><p class="lead" style="font-size:16px;margin-top:6px">Al usar esta pagina y los scripts aceptas estos terminos.</p>
+    <div class="card terms">
+      <h3>1. Uso bajo tu responsabilidad</h3><p>Los scripts de Uzivert Hub son herramientas para Roblox. Usar scripts de terceros puede ir contra las normas de Roblox o de cada juego y puede causar sanciones en tu cuenta. Los usas bajo tu propia responsabilidad y Uzivert Hub no se hace responsable de baneos, perdidas o danos.</p>
+      <h3>2. Sin garantia</h3><p>Los scripts y la pagina se ofrecen tal cual, sin garantia de que funcionen siempre. Pueden dejar de funcionar cuando un juego cambia, y pueden ponerse en mantenimiento o retirarse sin aviso.</p>
+      <h3>3. Verificacion de cuenta</h3><p>Para verificar tu cuenta solo te pedimos pegar un codigo de palabras en tu descripcion publica de Roblox. Nunca te pedimos contrasena, PIN, correo, codigos de verificacion en dos pasos ni cookies. Guardamos unicamente tu nombre de usuario e ID de Roblox, que son datos publicos. Si alguien te pide lo contrario en nombre de Uzivert Hub, es una estafa.</p>
+      <h3>4. Foro y comunidad</h3><p>Se respetuoso. No se permiten links, estafas, spam, insultos ni contenido ilegal u ofensivo. El staff puede borrar mensajes, cerrar temas y bloquear el acceso al foro sin aviso.</p>
+      <h3>5. Acceso y sanciones</h3><p>Podemos limitar o quitar el acceso a los scripts, a la verificacion o al foro a quien abuse del servicio, intente robar o redistribuir los scripts, o incumpla estos terminos.</p>
+      <h3>6. Propiedad</h3><p>Los scripts, el diseno y el contenido de Uzivert Hub son de su creador. No esta permitido copiarlos, revenderlos ni publicarlos como propios sin permiso. Todos los derechos reservados.</p>
+      <h3>7. Cambios</h3><p>Podemos actualizar estos terminos en cualquier momento. Seguir usando la pagina significa que aceptas la version vigente.</p>
+      <h3>8. Contacto</h3><p>Dudas sobre estos terminos: pestana Soporte o Discord.</p>
     </div>
   </section>
 
@@ -97,6 +141,6 @@
     </form>
   </section>
 </main>
-<footer>Uzivert Hub</footer>
+<footer>&copy; <span id="year">2026</span> Uzivert Hub. Todos los derechos reservados.</footer>
 <script src="/common.js"></script><script src="/app.js"></script>
 </body></html>
