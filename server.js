@@ -13,6 +13,7 @@ const WEBHOOK_VERIF = env.DISCORD_WEBHOOK_VERIFICACIONES || WEBHOOK_SOPORTE;
 const LOADSTRING = env.LOADSTRING || 'loadstring(game:HttpGet("https://uzivert-api.vercel.app/loader"))()';
 const API_URL = (env.UZIVERT_API_URL || 'https://uzivert-api.onrender.com').replace(/\/$/, '');
 const WEB_SECRET = env.WEB_SECRET || '';
+const COPIAR_MAX = Number(env.COPIAR_CONTENIDO_MAX) || 3000;   // hasta este largo se copia el contenido en vez del link
 const DISCORD_INVITE = env.DISCORD_INVITE || 'https://discord.gg/vHhERWcbXe';
 const ROBLOX_USERS = (env.ROBLOX_USERS_API || 'https://users.roblox.com').replace(/\/$/, '');
 let SESSION_SECRET = env.SESSION_SECRET;
@@ -277,10 +278,19 @@ app.get('/api/scripts', async (req, res) => {
   try {
     const verificado = !!unsign(cookies(req).uz_user);
     const base = baseUrl(req);
-    const list = (await loadIndex()).filter((x) => x.estado === 'activo').map((x) => ({
-      slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt,
-      loadstring: verificado ? `loadstring(game:HttpGet("${base}/s/${x.slug}"))()` : null,
-    }));
+    const activos = (await loadIndex()).filter((x) => x.estado === 'activo');
+    // Si el script es corto (un loader), se copia su contenido directo y no sale el link de onrender.com.
+    const textoCopiable = async (x) => {
+      try {
+        const c = cache.get(x.slug);
+        let code = c && Date.now() - c.t < 30e3 ? c.code : await store.read(`scripts/${x.slug}.lua`);
+        if (code != null && !(c && Date.now() - c.t < 30e3)) cache.set(x.slug, { t: Date.now(), code });
+        if (code != null && code.trim().length <= COPIAR_MAX) return code.trim();
+      } catch {}
+      return `loadstring(game:HttpGet("${base}/s/${x.slug}"))()`;
+    };
+    const list = [];
+    for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, loadstring: verificado ? await textoCopiable(x) : null });
     res.json({ verificado, scripts: list });
   } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
 });
