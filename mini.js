@@ -18,6 +18,7 @@ function createApp() {
   async function handle(req, res) {
     const u = new URL(req.url, 'http://x');
     req.path = u.pathname;
+    req.query = Object.fromEntries(u.searchParams);
     req.get = (h) => req.headers[String(h).toLowerCase()];
     req.is = (t) => String(req.headers['content-type'] || '').toLowerCase().includes(t);
     req.params = {};
