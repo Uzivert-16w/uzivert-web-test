@@ -170,7 +170,8 @@ app.post('/api/verificar/confirmar', needJson, async (req, res) => {
   } catch (e) { console.error('verif confirmar:', e.message); res.status(502).json({ error: 'No pudimos consultar Roblox. Intenta de nuevo.' }); }
 });
 
-app.get('/api/yo', (req, res) => { noStore(res); const u = unsign(cookies(req).uz_user); res.json({ verificado: !!u, usuario: u ? u.name : null }); });
+const isAdmin = (req) => { const a = unsign(cookies(req).uz_admin); return !!(ADMIN_KEY && a && a.admin === true); };
+app.get('/api/yo', (req, res) => { noStore(res); const u = unsign(cookies(req).uz_user); res.json({ verificado: !!u, usuario: u ? u.name : null, id: u ? u.id : null, staff: isAdmin(req) }); });
 app.get('/api/mi-script', (req, res) => {
   noStore(res);
   const u = unsign(cookies(req).uz_user);
@@ -267,6 +268,146 @@ app.get('/api/admin/diag', adminOnly, async (req, res) => {
   res.json(out);
 });
 app.get('/api/admin/verificados', adminOnly, async (req, res) => res.json(await loadVerified()));
+
+
+// ---------- LISTA PUBLICA DE SCRIPTS ----------
+const baseUrl = (req) => (env.PUBLIC_URL || `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers.host}`).replace(/\/$/, '');
+app.get('/api/scripts', async (req, res) => {
+  noStore(res);
+  try {
+    const verificado = !!unsign(cookies(req).uz_user);
+    const base = baseUrl(req);
+    const list = (await loadIndex()).filter((x) => x.estado === 'activo').map((x) => ({
+      slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt,
+      loadstring: verificado ? `loadstring(game:HttpGet("${base}/s/${x.slug}"))()` : null,
+    }));
+    res.json({ verificado, scripts: list });
+  } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
+});
+
+// ---------- FORO ----------
+const CATEGORIAS = ['General', 'Ayuda', 'Sugerencias', 'Scripts'];
+const MAX_TEMAS = 300, MAX_RESP = 300;
+let foro = null, foroTimer = null, foroSucio = false;
+async function loadForo() {
+  if (!foro) { try { foro = JSON.parse((await store.read('foro.json')) || 'null'); } catch { foro = null; } }
+  if (!foro || !Array.isArray(foro.temas)) foro = { temas: [], baneados: [] };
+  if (!Array.isArray(foro.baneados)) foro.baneados = [];
+  return foro;
+}
+function guardarForo() {            // escritura diferida: agrupa varios mensajes en un solo guardado
+  foroSucio = true;
+  if (foroTimer) return;
+  foroTimer = setTimeout(flushForo, 2000);
+}
+async function flushForo() {
+  clearTimeout(foroTimer); foroTimer = null;
+  if (!foroSucio || !foro) return;
+  foroSucio = false;
+  try { await store.write('foro.json', JSON.stringify(foro)); } catch (e) { foroSucio = true; console.error('guardar foro:', e.message); foroTimer = setTimeout(flushForo, 15000); }
+}
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, async () => { await flushForo(); process.exit(0); });
+
+const RE_LINK = /(https?:\/\/|www\.|discord\.gg|\b[a-z0-9-]{2,}\.(com|net|org|gg|io|ly|xyz|me|co|app|tk|ru|link|gl|cc|to|site|online|ml|ga|cf)\b)/i;
+const nuevoId = () => crypto.randomBytes(5).toString('hex');
+function autorDe(req) {
+  const u = unsign(cookies(req).uz_user);
+  if (u) return { id: u.id, name: u.name, staff: false };
+  if (isAdmin(req)) return { id: 0, name: SITE_NAME, staff: true };
+  return null;
+}
+const resumen = (t) => ({ id: t.id, titulo: t.titulo, categoria: t.categoria, autor: t.autor, fecha: t.fecha, ultima: t.ultima, respuestas: t.respuestas.length, fijado: !!t.fijado, cerrado: !!t.cerrado });
+const puedeBorrar = (req, autor) => isAdmin(req) || (autor && autor.id > 0 && (unsign(cookies(req).uz_user) || {}).id === autor.id);
+function validarTexto(texto, autor) {
+  if (!autor.staff && RE_LINK.test(texto)) return 'Por seguridad no se permiten links en el foro.';
+  return null;
+}
+
+app.get('/api/foro', async (req, res) => {
+  noStore(res);
+  const f = await loadForo();
+  const cat = CATEGORIAS.includes(req.query && req.query.cat) ? req.query.cat : null;
+  const lista = f.temas.filter((t) => !cat || t.categoria === cat).sort((a, b) => (b.fijado ? 1 : 0) - (a.fijado ? 1 : 0) || b.ultima.localeCompare(a.ultima)).slice(0, 60).map(resumen);
+  res.json({ categorias: CATEGORIAS, temas: lista });
+});
+app.get('/api/foro/:id', async (req, res) => {
+  noStore(res);
+  const f = await loadForo();
+  const t = f.temas.find((x) => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: 'Ese tema no existe.' });
+  const yo = unsign(cookies(req).uz_user);
+  const marca = (a) => ({ ...a, mio: !!(yo && a.id > 0 && a.id === yo.id) });
+  res.json({ ...resumen(t), texto: t.texto, autor: marca(t.autor), mensajes: t.respuestas.map((r) => ({ id: r.id, texto: r.texto, fecha: r.fecha, autor: marca(r.autor) })) });
+});
+app.post('/api/foro', needJson, async (req, res) => {
+  noStore(res);
+  const autor = autorDe(req);
+  if (!autor) return res.status(403).json({ error: 'Verifica tu cuenta para publicar en el foro.' });
+  const f = await loadForo();
+  if (autor.id > 0 && f.baneados.includes(autor.id)) return res.status(403).json({ error: 'No puedes publicar en el foro.' });
+  const b = req.body || {};
+  const titulo = clean(b.titulo, 80), texto = clean(b.texto, 1500);
+  const categoria = CATEGORIAS.includes(b.categoria) ? b.categoria : 'General';
+  if (titulo.length < 3) return res.status(400).json({ error: 'El titulo es muy corto.' });
+  if (texto.length < 5) return res.status(400).json({ error: 'El mensaje es muy corto.' });
+  const bad = validarTexto(titulo + ' ' + texto, autor);
+  if (bad) return res.status(400).json({ error: bad });
+  if (limited('ft:' + (autor.id || ip(req)), 3, 10 * 60e3)) return res.status(429).json({ error: 'Vas muy rapido. Espera unos minutos.' });
+  const ahora = new Date().toISOString();
+  const t = { id: nuevoId(), titulo, texto, categoria, autor, fecha: ahora, ultima: ahora, fijado: false, cerrado: false, respuestas: [] };
+  f.temas.push(t);
+  if (f.temas.length > MAX_TEMAS) { const i = f.temas.findIndex((x) => !x.fijado); if (i >= 0) f.temas.splice(i, 1); }
+  guardarForo();
+  res.json({ ok: true, id: t.id });
+});
+app.post('/api/foro/:id/responder', needJson, async (req, res) => {
+  noStore(res);
+  const autor = autorDe(req);
+  if (!autor) return res.status(403).json({ error: 'Verifica tu cuenta para responder.' });
+  const f = await loadForo();
+  if (autor.id > 0 && f.baneados.includes(autor.id)) return res.status(403).json({ error: 'No puedes publicar en el foro.' });
+  const t = f.temas.find((x) => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: 'Ese tema no existe.' });
+  if (t.cerrado) return res.status(403).json({ error: 'Este tema esta cerrado.' });
+  if (t.respuestas.length >= MAX_RESP) return res.status(403).json({ error: 'Este tema esta lleno.' });
+  const texto = clean(req.body && req.body.texto, 1500);
+  if (texto.length < 2) return res.status(400).json({ error: 'El mensaje es muy corto.' });
+  const bad = validarTexto(texto, autor);
+  if (bad) return res.status(400).json({ error: bad });
+  if (limited('fr:' + (autor.id || ip(req)), 8, 10 * 60e3)) return res.status(429).json({ error: 'Vas muy rapido. Espera unos minutos.' });
+  const r = { id: nuevoId(), autor, texto, fecha: new Date().toISOString() };
+  t.respuestas.push(r); t.ultima = r.fecha;
+  guardarForo();
+  res.json({ ok: true, id: r.id });
+});
+app.delete('/api/foro/:id', needJson, async (req, res) => {
+  noStore(res);
+  const f = await loadForo();
+  const i = f.temas.findIndex((x) => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: 'Ese tema no existe.' });
+  if (!puedeBorrar(req, f.temas[i].autor)) return res.status(403).json({ error: 'No puedes borrar esto.' });
+  f.temas.splice(i, 1); guardarForo();
+  res.json({ ok: true });
+});
+app.delete('/api/foro/:id/r/:rid', needJson, async (req, res) => {
+  noStore(res);
+  const f = await loadForo();
+  const t = f.temas.find((x) => x.id === req.params.id);
+  const i = t ? t.respuestas.findIndex((x) => x.id === req.params.rid) : -1;
+  if (i < 0) return res.status(404).json({ error: 'Ese mensaje no existe.' });
+  if (!puedeBorrar(req, t.respuestas[i].autor)) return res.status(403).json({ error: 'No puedes borrar esto.' });
+  t.respuestas.splice(i, 1); guardarForo();
+  res.json({ ok: true });
+});
+// Moderacion (solo admin)
+app.post('/api/admin/foro/:id/fijar', adminOnly, async (req, res) => { const f = await loadForo(); const t = f.temas.find((x) => x.id === req.params.id); if (!t) return res.status(404).json({ error: 'No existe' }); t.fijado = !!(req.body && req.body.valor); guardarForo(); res.json({ ok: true }); });
+app.post('/api/admin/foro/:id/cerrar', adminOnly, async (req, res) => { const f = await loadForo(); const t = f.temas.find((x) => x.id === req.params.id); if (!t) return res.status(404).json({ error: 'No existe' }); t.cerrado = !!(req.body && req.body.valor); guardarForo(); res.json({ ok: true }); });
+app.post('/api/admin/foro/baneo', adminOnly, async (req, res) => {
+  const f = await loadForo(); const id = Number(req.body && req.body.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID invalido' });
+  f.baneados = f.baneados.filter((x) => x !== id); if (req.body.valor) f.baneados.push(id);
+  guardarForo(); res.json({ ok: true, baneados: f.baneados });
+});
 
 // Entrega publica del script crudo: loadstring(game:HttpGet("https://TU-DOMINIO/s/slug"))()
 const cache = new Map();
