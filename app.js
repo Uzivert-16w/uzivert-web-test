@@ -4,6 +4,14 @@ let me = { verificado: false, staff: false, id: null };
 let cat = null, abierto = null;
 const txt = (tag, text, cls) => { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; return e; };
 const fdate = (iso) => new Date(iso).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' });
+// --- menu lateral ---
+function openMenu() { $('drawer').classList.add('on'); $('overlay').classList.add('on'); $('drawer').setAttribute('aria-hidden', 'false'); $('menu-btn').setAttribute('aria-expanded', 'true'); }
+function closeMenu() { $('drawer').classList.remove('on'); $('overlay').classList.remove('on'); $('drawer').setAttribute('aria-hidden', 'true'); $('menu-btn').setAttribute('aria-expanded', 'false'); }
+$('menu-btn').addEventListener('click', openMenu);
+$('menu-close').addEventListener('click', closeMenu);
+$('overlay').addEventListener('click', closeMenu);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+$('brand').addEventListener('click', () => go('inicio'));
 // --- navegacion ---
 function go(p) {
   document.querySelectorAll('.page').forEach((s) => s.classList.toggle('on', s.id === 'p-' + p));
@@ -13,11 +21,12 @@ function go(p) {
   if (p === 'scripts') loadScripts();
   if (p === 'foro') showList();
 }
-document.querySelectorAll('[data-p]').forEach((a) => a.addEventListener('click', () => go(a.dataset.p)));
+document.querySelectorAll('[data-p]').forEach((a) => a.addEventListener('click', () => { closeMenu(); go(a.dataset.p); }));
 document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
 const start = location.hash.slice(1);
-if (['inicio', 'verificar', 'soporte', 'scripts', 'foro'].includes(start)) go(start);
-api('/api/config').then((c) => { $('dc').href = c.discord; }).catch(() => {});
+if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos'].includes(start)) go(start);
+api('/api/config').then((c) => { $('dc').href = c.discord; $('dc2').href = c.discord; if (c.version) { $('ver').textContent = c.version; $('ver2').textContent = c.version; } }).catch(() => {});
+$('year').textContent = new Date().getFullYear();
 
 // --- soporte ---
 $('s-msg').addEventListener('input', () => { $('s-count').textContent = $('s-msg').value.length + '/1500'; });
