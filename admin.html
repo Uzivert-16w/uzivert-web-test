@@ -13,16 +13,16 @@
   <section id="panel" class="hide">
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3>Mis scripts</h3><button id="new">Nuevo script</button></div>
       <p id="stor" style="margin:4px 0 10px"></p>
-      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>NOMBRE</th><th>JUEGO</th><th>VERSION</th><th>ESTADO</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
-      <p id="empty" class="hide" style="margin-top:12px">Todavia no subiste ningun script.</p>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>NOMBRE</th><th>JUEGO</th><th>VERSIÓN</th><th>ESTADO</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+      <p id="empty" class="hide" style="margin-top:12px">Todavía no subiste ningún script.</p>
     </div>
     <div class="card hide" id="ed">
       <h3 id="ed-t">Nuevo script</h3>
       <label for="e-name">Nombre</label><input id="e-name" maxlength="60" placeholder="Ej: MM2 Hub">
-      <label for="e-code">Loader (pega aqui tu loadstring o tu script)</label><textarea class="code-ed" id="e-code" spellcheck="false" placeholder='loadstring(game:HttpGet("https://..."))()'></textarea>
+      <label for="e-code">Loader (pega aquí tu loadstring o tu script)</label><textarea class="code-ed" id="e-code" spellcheck="false" placeholder='loadstring(game:HttpGet("https://..."))()'></textarea>
       <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--sub);font-size:14px">Opciones (no son necesarias)</summary>
-        <div class="two"><div><label for="e-slug">Nombre del link (se crea solo)</label><input id="e-slug" maxlength="40" placeholder="mm2-hub"></div><div><label for="e-ver">Version</label><input id="e-ver" maxlength="20" placeholder="v1.0"></div></div>
-        <div class="two"><div><label for="e-game">Juego</label><input id="e-game" maxlength="60"></div><div><label for="e-desc">Descripcion</label><input id="e-desc" maxlength="300"></div></div>
+        <div class="two"><div><label for="e-slug">Nombre del link (se crea solo)</label><input id="e-slug" maxlength="40" placeholder="mm2-hub"></div><div><label for="e-ver">Versión</label><input id="e-ver" maxlength="20" placeholder="v1.0"></div></div>
+        <div class="two"><div><label for="e-game">Juego</label><input id="e-game" maxlength="60"></div><div><label for="e-desc">Descripción</label><input id="e-desc" maxlength="300"></div></div>
         <label for="e-estado">Estado</label><select id="e-estado"><option value="activo">Activo (disponible por link)</option><option value="oculto">Oculto (el link da 404)</option></select>
         <label for="e-file">O subir un archivo .lua / .txt</label><input id="e-file" type="file" accept=".lua,.txt,text/plain">
       </details>
@@ -30,7 +30,7 @@
       <div class="row"><button id="e-save">Guardar</button><button class="ghost" id="e-cancel">Cerrar</button></div><div class="msg" id="em"></div>
     </div>
     <div class="card"><h3>Cuentas verificadas</h3><p id="vcount">...</p><div class="row"><button class="ghost" id="vlist">Ver lista</button></div><pre class="ls hide" id="vpre" style="margin-top:10px;max-height:260px;overflow:auto"></pre></div>
-  <div class="card"><h3>Diagnostico</h3><p>Prueba si el servidor llega a Roblox y a Discord.</p><div class="row"><button class="ghost" id="diag">Ejecutar diagnostico</button></div><pre class="ls hide" id="dpre" style="margin-top:10px"></pre></div>
+  <div class="card"><h3>Diagnóstico</h3><p>Prueba si el servidor llega a Roblox y a Discord.</p><div class="row"><button class="ghost" id="diag">Ejecutar diagnóstico</button></div><pre class="ls hide" id="dpre" style="margin-top:10px"></pre></div>
   </section>
 </main>
 <script src="/common.js"></script><script src="/admin.js"></script>
