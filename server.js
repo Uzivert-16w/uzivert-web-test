@@ -18,15 +18,15 @@ const DISCORD_INVITE = env.DISCORD_INVITE || 'https://discord.gg/vHhERWcbXe';
 const ROBLOX_USERS = (env.ROBLOX_USERS_API || 'https://users.roblox.com').replace(/\/$/, '');
 let SESSION_SECRET = env.SESSION_SECRET;
 if (!SESSION_SECRET) { SESSION_SECRET = crypto.randomBytes(32).toString('hex'); console.warn('[aviso] SESSION_SECRET no definido: las sesiones se pierden al reiniciar.'); }
-if (!WEB_SECRET) console.warn('[aviso] WEB_SECRET no definido: las verificaciones de la pagina NO se registran en la API del hub (el loader no las reconoce).');
+if (!WEB_SECRET) console.warn('[aviso] WEB_SECRET no definido: las verificaciones de la página NO se registran en la API del hub (el loader no las reconoce).');
 if (!ADMIN_KEY) console.warn('[aviso] ADMIN_KEY no definida: el panel admin queda deshabilitado.');
-if (!WEBHOOK_SOPORTE) console.warn('[aviso] DISCORD_WEBHOOK_SOPORTE no definido: el soporte no podra enviar mensajes.');
+if (!WEBHOOK_SOPORTE) console.warn('[aviso] DISCORD_WEBHOOK_SOPORTE no definido: el soporte no podrá enviar mensajes.');
 
 const store = env.GITHUB_TOKEN && env.GITHUB_REPO
   ? githubStore({ api: env.GITHUB_API, token: env.GITHUB_TOKEN, repo: env.GITHUB_REPO, branch: env.GITHUB_BRANCH || 'main', dir: env.GITHUB_DIR || 'uzivert-web' })
   : localStore(env.DATA_DIR || path.join(__dirname, 'data'));
 console.log(`[almacenamiento] ${store.kind} | node ${process.version} | fetch: ${typeof fetch}`);
-if (typeof fetch !== 'function') console.error('[ERROR] Esta version de Node no tiene fetch. Usa Node 18 o mas nuevo (variable NODE_VERSION=20 en Render).');
+if (typeof fetch !== 'function') console.error('[ERROR] Esta versión de Node no tiene fetch. Usa Node 18 o más nuevo (variable NODE_VERSION=20 en Render).');
 
 // ---------- utilidades ----------
 const b64u = (b) => Buffer.from(b).toString('base64url');
@@ -79,7 +79,7 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '1.5mb' }));
 const noStore = (res) => res.setHeader('Cache-Control', 'no-store');
-const needJson = (req, res, next) => (req.is('application/json') && req.get('X-Requested-With') === 'uz' ? next() : res.status(400).json({ error: 'Peticion invalida' }));
+const needJson = (req, res, next) => (req.is('application/json') && req.get('X-Requested-With') === 'uz' ? next() : res.status(400).json({ error: 'Petición inválida' }));
 const ip = (req) => req.ip || 'x';
 
 app.get('/api/config', (req, res) => res.json({ nombre: SITE_NAME, discord: DISCORD_INVITE, soporte: !!WEBHOOK_SOPORTE, version: env.SITE_VERSION || 'v1.0' }));
@@ -94,7 +94,7 @@ app.post('/api/soporte', needJson, async (req, res) => {
   const asunto = ASUNTOS.includes(b.asunto) ? b.asunto : 'Otro';
   const contacto = clean(b.contacto, 100);
   const mensaje = clean(b.mensaje, 1500);
-  if (mensaje.length < 10) return res.status(400).json({ error: 'El mensaje es muy corto (minimo 10 caracteres).' });
+  if (mensaje.length < 10) return res.status(400).json({ error: 'El mensaje es muy corto (mínimo 10 caracteres).' });
   const u = unsign(cookies(req).uz_user);
   const fields = [
     { name: 'Asunto', value: asunto, inline: true },
@@ -104,13 +104,13 @@ app.post('/api/soporte', needJson, async (req, res) => {
   try {
     await postWebhook(WEBHOOK_SOPORTE, { username: SITE_NAME + ' | Soporte', embeds: [{ title: 'Nuevo mensaje de soporte', description: esc(mensaje), color: 0x8e94a3, fields, timestamp: new Date().toISOString() }] });
     res.json({ ok: true });
-  } catch (e) { console.error('soporte:', e.message, e.cause ? (e.cause.code || e.cause.message) : ''); res.status(502).json({ error: 'No se pudo enviar el mensaje. Intenta de nuevo mas tarde.' }); }
+  } catch (e) { console.error('soporte:', e.message, e.cause ? (e.cause.code || e.cause.message) : ''); res.status(502).json({ error: 'No se pudo enviar el mensaje. Intenta de nuevo más tarde.' }); }
 });
 
-// ---------- VERIFICACION (codigo en la descripcion de Roblox) ----------
+// ---------- VERIFICACION (código en la descripción de Roblox) ----------
 const pending = new Map();                                         // token -> {code,id,name,exp}
 setInterval(() => { const n = Date.now(); for (const [k, v] of pending) if (v.exp < n) pending.delete(k); }, 60e3).unref();
-// Codigo de palabras comunes: Roblox censura (####) los codigos de letras al azar.
+// Código de palabras comunes: Roblox censura (####) los códigos de letras al azar.
 const PALABRAS = ['apple','banana','cherry','orange','lemon','mango','melon','peach','tiger','panda','koala','eagle','shark','whale','zebra','rabbit','turtle','monkey','dolphin','penguin','forest','river','mountain','ocean','island','desert','cloud','rainbow','sunset','planet','rocket','castle','bridge','garden','window','guitar','piano','camera','pencil','candle','mirror','blanket','pillow','basket','bottle','ladder','ticket','jacket','pocket'];
 // Registra la cuenta en la API del hub (la misma base que usa el bot y el loader).
 async function registrarEnApi(p) {
@@ -134,7 +134,7 @@ app.post('/api/verificar/iniciar', needJson, async (req, res) => {
   noStore(res);
   if (limited('vi:' + ip(req), 8, 10 * 60e3)) return res.status(429).json({ error: 'Demasiados intentos, espera unos minutos.' });
   const usuario = clean(req.body && req.body.usuario, 20);
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(usuario)) return res.status(400).json({ error: 'Usuario de Roblox invalido.' });
+  if (!/^[A-Za-z0-9_]{3,20}$/.test(usuario)) return res.status(400).json({ error: 'Usuario de Roblox inválido.' });
   try {
     const r = await fetch(`${ROBLOX_USERS}/v1/usernames/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usernames: [usuario], excludeBannedUsers: true }) });
     if (!r.ok) throw new Error('roblox ' + r.status);
@@ -152,19 +152,19 @@ app.post('/api/verificar/confirmar', needJson, async (req, res) => {
   noStore(res);
   if (limited('vc:' + ip(req), 15, 10 * 60e3)) return res.status(429).json({ error: 'Demasiados intentos, espera unos minutos.' });
   const p = pending.get(clean(req.body && req.body.token, 60));
-  if (!p || p.exp < Date.now()) return res.status(400).json({ error: 'El codigo expiro. Empieza de nuevo.' });
+  if (!p || p.exp < Date.now()) return res.status(400).json({ error: 'El código expiró. Empieza de nuevo.' });
   try {
     const r = await fetch(`${ROBLOX_USERS}/v1/users/${p.id}`);
     if (!r.ok) throw new Error('roblox ' + r.status);
     const d = await r.json();
-    if (!norm(d.description).includes(p.code)) return res.status(400).json({ error: 'No encontramos el codigo en tu descripcion. Guarda el perfil y prueba otra vez.' });
+    if (!norm(d.description).includes(p.code)) return res.status(400).json({ error: 'No encontramos el código en tu descripción. Guarda el perfil y prueba otra vez.' });
     if (!(await registrarEnApi(p))) return res.status(502).json({ error: 'Tu cuenta es correcta, pero no pudimos registrarla en el servidor del hub. Espera un minuto y toca Verificar de nuevo.' });
     pending.delete(clean(req.body.token, 60));
     const list = await loadVerified();
     if (!list.some((v) => v.id === p.id)) {
       list.push({ id: p.id, name: p.name, fecha: new Date().toISOString() });
       await store.write('verificados.json', JSON.stringify(list, null, 2));
-      postWebhook(WEBHOOK_VERIF, { username: SITE_NAME + ' | Verificacion', embeds: [{ title: 'Cuenta verificada', color: 0x57f287, description: `**${esc(p.name)}** (ID ${p.id})\nhttps://www.roblox.com/users/${p.id}/profile`, timestamp: new Date().toISOString() }] }).catch((e) => console.error('webhook verif:', e.message));
+      postWebhook(WEBHOOK_VERIF, { username: SITE_NAME + ' | Verificación', embeds: [{ title: 'Cuenta verificada', color: 0x57f287, description: `**${esc(p.name)}** (ID ${p.id})\nhttps://www.roblox.com/users/${p.id}/profile`, timestamp: new Date().toISOString() }] }).catch((e) => console.error('webhook verif:', e.message));
     }
     setCookie(res, 'uz_user', sign({ id: p.id, name: p.name, exp: Date.now() + 30 * 864e5 }), 30 * 86400);
     res.json({ ok: true, usuario: p.name });
@@ -191,7 +191,7 @@ function adminOnly(req, res, next) {
   noStore(res);
   const s = unsign(cookies(req).uz_admin);
   if (!ADMIN_KEY || !s || s.admin !== true) return res.status(401).json({ error: 'No autorizado' });
-  if (req.method !== 'GET' && req.get('X-Requested-With') !== 'uz') return res.status(400).json({ error: 'Peticion invalida' });
+  if (req.method !== 'GET' && req.get('X-Requested-With') !== 'uz') return res.status(400).json({ error: 'Petición inválida' });
   next();
 }
 app.post('/api/admin/login', needJson, (req, res) => {
@@ -209,7 +209,7 @@ app.get('/api/admin/yo', adminOnly, (req, res) => res.json({ ok: true, almacenam
 
 app.get('/api/admin/scripts', adminOnly, async (req, res) => { try { res.json(await loadIndex()); } catch (e) { res.status(500).json({ error: 'No se pudo leer el almacenamiento.' }); } });
 app.get('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
-  if (!SLUG.test(req.params.slug)) return res.status(400).json({ error: 'Slug invalido' });
+  if (!SLUG.test(req.params.slug)) return res.status(400).json({ error: 'Slug inválido' });
   try {
     const meta = (await loadIndex()).find((s) => s.slug === req.params.slug);
     if (!meta) return res.status(404).json({ error: 'No existe' });
@@ -218,10 +218,10 @@ app.get('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
 });
 app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   const slug = req.params.slug;
-  if (!SLUG.test(slug)) return res.status(400).json({ error: 'Slug invalido (minusculas, numeros y guiones, 2-40).' });
+  if (!SLUG.test(slug)) return res.status(400).json({ error: 'Slug inválido (minúsculas, números y guiones, 2-40).' });
   const b = req.body || {};
   const code = String(b.code == null ? '' : b.code);
-  if (!code.trim()) return res.status(400).json({ error: 'El script esta vacio.' });
+  if (!code.trim()) return res.status(400).json({ error: 'El script está vacío.' });
   if (code.length > 1_000_000) return res.status(400).json({ error: 'El script es demasiado grande (max 1 MB).' });
   const meta = { slug, name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
   try {
@@ -234,7 +234,7 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   } catch (e) { console.error('guardar script:', e.message); res.status(500).json({ error: 'No se pudo guardar: ' + e.message }); }
 });
 app.delete('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
-  if (!SLUG.test(req.params.slug)) return res.status(400).json({ error: 'Slug invalido' });
+  if (!SLUG.test(req.params.slug)) return res.status(400).json({ error: 'Slug inválido' });
   try {
     await store.remove(`scripts/${req.params.slug}.lua`);
     await saveIndex((await loadIndex()).filter((s) => s.slug !== req.params.slug));
@@ -242,29 +242,29 @@ app.delete('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'No se pudo borrar.' }); }
 });
-// Diagnostico: prueba desde el servidor si llega a Roblox, a Discord y al almacenamiento.
+// Diagnóstico: prueba desde el servidor si llega a Roblox, a Discord y al almacenamiento.
 app.get('/api/admin/diag', adminOnly, async (req, res) => {
   const out = { node: process.version, fetch: typeof fetch, almacenamiento: store.kind, webhook_soporte_definido: !!WEBHOOK_SOPORTE, webhook_verif_definido: !!WEBHOOK_VERIF, github_definido: !!(env.GITHUB_TOKEN && env.GITHUB_REPO) };
   if (typeof fetch !== 'function') return res.json(out);
   const probe = async (name, fn) => { try { const r = await fn(); out[name] = r; } catch (e) { out[name] = 'ERROR: ' + (e.cause && e.cause.code || e.message); } };
   await probe('roblox', async () => { const r = await fetch(`${ROBLOX_USERS}/v1/usernames/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usernames: ['Roblox'], excludeBannedUsers: true }) }); return 'HTTP ' + r.status; });
-  await probe('discord_webhook', async () => { if (!WEBHOOK_SOPORTE) return 'no definido'; const r = await fetch(WEBHOOK_SOPORTE); return r.status === 200 ? 'OK (webhook valido)' : 'HTTP ' + r.status + (r.status === 404 ? ' (URL invalida o webhook borrado)' : r.status === 429 ? ' (Discord limita la IP de Render)' : ''); });
+  await probe('discord_webhook', async () => { if (!WEBHOOK_SOPORTE) return 'no definido'; const r = await fetch(WEBHOOK_SOPORTE); return r.status === 200 ? 'OK (webhook valido)' : 'HTTP ' + r.status + (r.status === 404 ? ' (URL inválida o webhook borrado)' : r.status === 429 ? ' (Discord limita la IP de Render)' : ''); });
   if (env.GITHUB_TOKEN && env.GITHUB_REPO) await probe('github_repo', async () => {
     const r = await fetch(`${env.GITHUB_API || 'https://api.github.com'}/repos/${env.GITHUB_REPO}`, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'uzivert-web' } });
-    if (r.status === 401) return 'HTTP 401: el token es invalido o vencio';
+    if (r.status === 401) return 'HTTP 401: el token es inválido o venció';
     if (r.status === 404) return 'HTTP 404: el repo no existe o el token no tiene acceso a ese repo (revisa GITHUB_REPO y los permisos del token)';
     if (!r.ok) return 'HTTP ' + r.status;
     const d = await r.json();
     const push = d.permissions ? d.permissions.push : undefined;
     return `OK repo ${d.full_name}, rama por defecto: ${d.default_branch}${push === false ? ' | SIN permiso de escritura' : ''}${d.default_branch !== (env.GITHUB_BRANCH || 'main') ? ` | OJO: GITHUB_BRANCH debe ser ${d.default_branch}` : ''}`;
   });
-  else out.github_aviso = 'Falta GITHUB_TOKEN o GITHUB_REPO: se esta guardando en disco local (se pierde al reiniciar).';
+  else out.github_aviso = 'Falta GITHUB_TOKEN o GITHUB_REPO: se está guardando en disco local (se pierde al reiniciar).';
   await probe('api_hub', async () => {
-    if (!WEB_SECRET) return 'WEB_SECRET no definido: la verificacion NO se registra en la API';
+    if (!WEB_SECRET) return 'WEB_SECRET no definido: la verificación NO se registra en la API';
     const r = await fetch(`${API_URL}/api/verificar_web`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-web-secret': WEB_SECRET }, body: JSON.stringify({}) });
-    return r.status === 400 ? 'OK (la API acepta el secreto)' : r.status === 401 ? 'ERROR 401: el WEB_SECRET no coincide con el de la API' : r.status === 404 ? 'ERROR 404: la API todavia no tiene /api/verificar_web (sube el index.js nuevo)' : 'HTTP ' + r.status;
+    return r.status === 400 ? 'OK (la API acepta el secreto)' : r.status === 401 ? 'ERROR 401: el WEB_SECRET no coincide con el de la API' : r.status === 404 ? 'ERROR 404: la API todavía no tiene /api/verificar_web (sube el index.js nuevo)' : 'HTTP ' + r.status;
   });
-  await probe('almacenamiento_escritura', async () => { await store.write('diagnostico.txt', 'prueba ' + new Date().toISOString()); return 'OK: se escribio ' + (store.kind === 'github' ? `${env.GITHUB_DIR || 'uzivert-web'}/diagnostico.txt en ${env.GITHUB_REPO}` : 'diagnostico.txt en disco local'); });
+  await probe('almacenamiento_escritura', async () => { await store.write('diagnostico.txt', 'prueba ' + new Date().toISOString()); return 'OK: se escribió ' + (store.kind === 'github' ? `${env.GITHUB_DIR || 'uzivert-web'}/diagnostico.txt en ${env.GITHUB_REPO}` : 'diagnostico.txt en disco local'); });
   await probe('almacenamiento_lectura', async () => { await store.read('scripts/index.json'); return 'OK'; });
   res.json(out);
 });
@@ -358,11 +358,11 @@ app.post('/api/foro', needJson, async (req, res) => {
   const b = req.body || {};
   const titulo = clean(b.titulo, 80), texto = clean(b.texto, 1500);
   const categoria = CATEGORIAS.includes(b.categoria) ? b.categoria : 'General';
-  if (titulo.length < 3) return res.status(400).json({ error: 'El titulo es muy corto.' });
+  if (titulo.length < 3) return res.status(400).json({ error: 'El título es muy corto.' });
   if (texto.length < 5) return res.status(400).json({ error: 'El mensaje es muy corto.' });
   const bad = validarTexto(titulo + ' ' + texto, autor);
   if (bad) return res.status(400).json({ error: bad });
-  if (limited('ft:' + (autor.id || ip(req)), 3, 10 * 60e3)) return res.status(429).json({ error: 'Vas muy rapido. Espera unos minutos.' });
+  if (limited('ft:' + (autor.id || ip(req)), 3, 10 * 60e3)) return res.status(429).json({ error: 'Vas muy rápido. Espera unos minutos.' });
   const ahora = new Date().toISOString();
   const t = { id: nuevoId(), titulo, texto, categoria, autor, fecha: ahora, ultima: ahora, fijado: false, cerrado: false, respuestas: [] };
   f.temas.push(t);
@@ -378,13 +378,13 @@ app.post('/api/foro/:id/responder', needJson, async (req, res) => {
   if (autor.id > 0 && f.baneados.includes(autor.id)) return res.status(403).json({ error: 'No puedes publicar en el foro.' });
   const t = f.temas.find((x) => x.id === req.params.id);
   if (!t) return res.status(404).json({ error: 'Ese tema no existe.' });
-  if (t.cerrado) return res.status(403).json({ error: 'Este tema esta cerrado.' });
-  if (t.respuestas.length >= MAX_RESP) return res.status(403).json({ error: 'Este tema esta lleno.' });
+  if (t.cerrado) return res.status(403).json({ error: 'Este tema está cerrado.' });
+  if (t.respuestas.length >= MAX_RESP) return res.status(403).json({ error: 'Este tema está lleno.' });
   const texto = clean(req.body && req.body.texto, 1500);
   if (texto.length < 2) return res.status(400).json({ error: 'El mensaje es muy corto.' });
   const bad = validarTexto(texto, autor);
   if (bad) return res.status(400).json({ error: bad });
-  if (limited('fr:' + (autor.id || ip(req)), 8, 10 * 60e3)) return res.status(429).json({ error: 'Vas muy rapido. Espera unos minutos.' });
+  if (limited('fr:' + (autor.id || ip(req)), 8, 10 * 60e3)) return res.status(429).json({ error: 'Vas muy rápido. Espera unos minutos.' });
   const r = { id: nuevoId(), autor, texto, fecha: new Date().toISOString() };
   t.respuestas.push(r); t.ultima = r.fecha;
   guardarForo();
@@ -414,12 +414,12 @@ app.post('/api/admin/foro/:id/fijar', adminOnly, async (req, res) => { const f =
 app.post('/api/admin/foro/:id/cerrar', adminOnly, async (req, res) => { const f = await loadForo(); const t = f.temas.find((x) => x.id === req.params.id); if (!t) return res.status(404).json({ error: 'No existe' }); t.cerrado = !!(req.body && req.body.valor); guardarForo(); res.json({ ok: true }); });
 app.post('/api/admin/foro/baneo', adminOnly, async (req, res) => {
   const f = await loadForo(); const id = Number(req.body && req.body.id);
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID invalido' });
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido' });
   f.baneados = f.baneados.filter((x) => x !== id); if (req.body.valor) f.baneados.push(id);
   guardarForo(); res.json({ ok: true, baneados: f.baneados });
 });
 
-// Entrega publica del script crudo: loadstring(game:HttpGet("https://TU-DOMINIO/s/slug"))()
+// Entrega pública del script crudo: loadstring(game:HttpGet("https://TU-DOMINIO/s/slug"))()
 const cache = new Map();
 app.get('/s/:slug', async (req, res) => {
   res.type('text/plain; charset=utf-8').setHeader('Cache-Control', 'no-store');
@@ -437,7 +437,7 @@ app.get('/s/:slug', async (req, res) => {
   } catch (e) { res.status(502).send('-- error temporal'); }
 });
 
-// Archivos de la pagina: carpeta public/, o (si subiste todo suelto en la raiz) solo estos archivos permitidos.
+// Archivos de la página: carpeta public/, o (si subiste todo suelto en la raiz) solo estos archivos permitidos.
 const fs = require('fs');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
@@ -445,7 +445,7 @@ if (fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
 } else {
   const PAGINA = new Set(['index.html', 'admin.html', 'style.css', 'app.js', 'admin.js', 'common.js']);
   const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8' };
-  console.log('[aviso] No hay carpeta public/: sirviendo los archivos de la pagina desde la raiz.');
+  console.log('[aviso] No hay carpeta public/: sirviendo los archivos de la página desde la raiz.');
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     let n = req.path === '/' ? 'index.html' : req.path === '/admin' ? 'admin.html' : req.path.slice(1);
@@ -457,7 +457,7 @@ if (fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
   });
 }
 app.use('/api', (req, res) => res.status(404).json({ error: 'No encontrado' }));
-app.use((err, req, res, next) => { if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Demasiado grande' }); if (err instanceof SyntaxError) return res.status(400).json({ error: 'JSON invalido' }); console.error(err); res.status(500).json({ error: 'Error interno' }); });
+app.use((err, req, res, next) => { if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Demasiado grande' }); if (err instanceof SyntaxError) return res.status(400).json({ error: 'JSON inválido' }); console.error(err); res.status(500).json({ error: 'Error interno' }); });
 
 module.exports = app;
 if (require.main === module) app.listen(PORT, () => console.log(`${SITE_NAME} web en puerto ${PORT}`));
