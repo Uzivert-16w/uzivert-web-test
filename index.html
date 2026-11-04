@@ -7,7 +7,7 @@
 <canvas id="stars"></canvas>
 <header>
   <div class="brand"><div class="orb"></div>UZIVERT HUB</div>
-  <nav id="nav"><a data-p="inicio" class="on">Inicio</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a><a id="dc" target="_blank" rel="noopener">Discord</a></nav>
+  <nav id="nav"><a data-p="inicio" class="on">Inicio</a><a data-p="scripts">Scripts</a><a data-p="foro">Foro</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a><a id="dc" target="_blank" rel="noopener">Discord</a></nav>
 </header>
 <main>
   <section class="page on" id="p-inicio">
@@ -17,11 +17,54 @@
       <div class="card"><h3>API segura</h3><p>Conexiones cifradas y protegidas.</p></div>
       <div class="card"><h3>Anti stealers</h3><p>Proteccion contra robo de cuentas.</p></div>
       <div class="card"><h3>Anti scam</h3><p>Verificacion oficial de cuentas.</p></div>
+      <div class="card"><h3>Verificar es seguro</h3><p>Nunca te pedimos contrasena, PIN ni correo.</p></div>
+    </div>
+  </section>
+
+  <section class="page" id="p-scripts">
+    <h2>Scripts</h2><p class="lead" style="font-size:16px;margin-top:6px">Los scripts oficiales de Uzivert Hub. Verifica tu cuenta para copiarlos.</p>
+    <div class="msg" id="sc-lock"></div>
+    <div id="sc-list"></div>
+    <p id="sc-empty" class="hide" style="color:var(--sub)">Todavia no hay scripts publicados.</p>
+  </section>
+
+  <section class="page" id="p-foro">
+    <div id="f-lista">
+      <h2>Foro</h2><p class="lead" style="font-size:16px;margin-top:6px">Habla con la comunidad. Para publicar necesitas tener tu cuenta verificada.</p>
+      <div class="chips" id="f-cats"></div>
+      <div class="row" style="margin-top:0;margin-bottom:14px"><button id="f-nuevo">Nuevo tema</button></div>
+      <form class="card hide" id="f-form" autocomplete="off">
+        <label for="f-cat">Categoria</label><select id="f-cat"></select>
+        <label for="f-tit">Titulo</label><input id="f-tit" maxlength="80">
+        <label for="f-txt">Mensaje</label><textarea id="f-txt" maxlength="1500"></textarea>
+        <p class="nota">Por seguridad no se permiten links. Se respetuoso.</p>
+        <div class="row"><button type="submit" id="f-pub">Publicar</button><button type="button" class="ghost" id="f-cancel">Cancelar</button></div>
+        <div class="msg" id="f-msg"></div>
+      </form>
+      <div id="f-temas"></div>
+      <p id="f-vacio" class="hide" style="color:var(--sub)">Todavia no hay temas. Se el primero en publicar.</p>
+    </div>
+    <div id="f-hilo" class="hide">
+      <button class="ghost" id="f-volver">&larr; Volver al foro</button>
+      <div class="card" id="f-op" style="margin-top:14px"></div>
+      <div id="f-resp"></div>
+      <form class="card" id="f-rform" autocomplete="off">
+        <label for="f-rtxt">Responder</label><textarea id="f-rtxt" maxlength="1500" style="min-height:90px"></textarea>
+        <div class="row"><button type="submit" id="f-rpub">Responder</button></div>
+        <div class="msg" id="f-rmsg"></div>
+      </form>
     </div>
   </section>
 
   <section class="page" id="p-verificar">
     <h2>Verificar cuenta</h2><p class="lead" style="font-size:16px;margin-top:6px">Demuestra que tu cuenta de Roblox es tuya y obtén el script oficial.</p>
+    <div class="card safe">
+      <h3>Verificar tu cuenta es seguro</h3>
+      <p>Solo te pedimos pegar <b>5 palabras al azar</b> en tu descripcion publica de Roblox. Con eso comprobamos que la cuenta es tuya. Nada mas.</p>
+      <ul class="ck bad"><li>Nunca te pedimos tu <b>contrasena</b></li><li>Nunca te pedimos tu <b>PIN</b> de la cuenta</li><li>Nunca te pedimos tu <b>correo</b> ni codigos de verificacion en 2 pasos</li><li>Nunca te pedimos tu <b>cookie</b> (.ROBLOSECURITY)</li></ul>
+      <ul class="ck ok"><li>Solo leemos tu <b>nombre de usuario</b> y tu <b>descripcion publica</b></li><li>Guardamos unicamente tu usuario e ID de Roblox (datos publicos)</li><li>Cuando termines, puedes <b>borrar las palabras</b> de tu descripcion</li></ul>
+      <p class="warn">Si alguien te pide tu contrasena, PIN o cookie en nombre de Uzivert Hub, es una estafa: no lo hagas y avisanos en el Discord.</p>
+    </div>
     <div class="card" id="v-ok" style="display:none">
       <h3>Cuenta verificada: <span id="v-name"></span></h3><p>Este es el loadstring oficial. Copialo y pegalo en tu ejecutor.</p>
       <pre class="ls" id="v-ls">Cargando...</pre>
