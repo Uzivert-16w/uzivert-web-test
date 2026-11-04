@@ -1,25 +1,25 @@
 <!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Uzivert Hub</title><meta name="description" content="Uzivert Hub: scripts para Roblox, soporte y verificacion de cuenta.">
+<title>Uzivert Hub</title><meta name="description" content="Uzivert Hub: scripts para Roblox, soporte y verificación de cuenta.">
 <link rel="stylesheet" href="/style.css"></head>
 <body>
 <canvas id="stars"></canvas>
 <header>
   <div class="brand" id="brand" role="link" tabindex="0"><div class="orb"></div>UZIVERT HUB</div>
-  <button class="burger" id="menu-btn" aria-label="Abrir menu" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button>
+  <button class="burger" id="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button>
   <nav id="nav"><a data-p="inicio" class="on">Inicio</a><a data-p="scripts">Scripts</a><a data-p="foro">Foro</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a></nav>
 </header>
 <div class="overlay" id="overlay"></div>
-<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Menu">
-  <div class="dr-head"><div class="brand"><div class="orb"></div>UZIVERT HUB</div><button class="close" id="menu-close" aria-label="Cerrar menu">&times;</button></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Menú">
+  <div class="dr-head"><div class="brand"><div class="orb"></div>UZIVERT HUB</div><button class="close" id="menu-close" aria-label="Cerrar menú">&times;</button></div>
   <div class="dr-list">
     <a data-p="creador">Creador</a>
-    <a data-p="creditos">Creditos</a>
-    <a data-p="terminos">Terminos y condiciones</a>
+    <a data-p="creditos">Créditos</a>
+    <a data-p="terminos">Términos y condiciones</a>
     <a id="dc" target="_blank" rel="noopener">Discord</a>
   </div>
-  <div class="dr-foot"><div>Version de la pagina</div><b id="ver">v1.0</b><div style="margin-top:10px">Uzivert Hub. Todos los derechos reservados.</div></div>
+  <div class="dr-foot"><div>Versión de la página</div><b id="ver">v1.0</b><div style="margin-top:10px">Uzivert Hub. Todos los derechos reservados.</div></div>
 </aside>
 <main>
   <section class="page on" id="p-inicio">
@@ -27,41 +27,41 @@
       <div class="row" style="justify-content:center"><button data-go="verificar">Verificar mi cuenta</button><button class="ghost" data-go="soporte">Contactar soporte</button></div></div>
     <div class="grid" style="margin-top:34px">
       <div class="card"><h3>API segura</h3><p>Conexiones cifradas y protegidas.</p></div>
-      <div class="card"><h3>Anti stealers</h3><p>Proteccion contra robo de cuentas.</p></div>
-      <div class="card"><h3>Anti scam</h3><p>Verificacion oficial de cuentas.</p></div>
-      <div class="card"><h3>Verificar es seguro</h3><p>Nunca te pedimos contrasena, PIN ni correo.</p></div>
+      <div class="card"><h3>Anti stealers</h3><p>Protección contra robo de cuentas.</p></div>
+      <div class="card"><h3>Anti scam</h3><p>Verificación oficial de cuentas.</p></div>
+      <div class="card"><h3>Verificar es seguro</h3><p>Nunca te pedimos contraseña, PIN ni correo.</p></div>
     </div>
   </section>
 
   <section class="page" id="p-creador">
-    <h2>Creador</h2><p class="lead" style="font-size:16px;margin-top:6px">Quien esta detras de Uzivert Hub.</p>
-    <div class="card"><h3>Uzivert</h3><p>Desarrollo y mantenimiento de todos los scripts y de esta pagina. Uzivert Hub es un proyecto independiente hecho para la comunidad de Roblox.</p></div>
-    <div class="card"><h3>Como se actualizan los scripts</h3>
+    <h2>Creador</h2><p class="lead" style="font-size:16px;margin-top:6px">Quién está detrás de Uzivert Hub.</p>
+    <div class="card"><h3>Uzivert</h3><p>Desarrollo y mantenimiento de todos los scripts y de esta página. Uzivert Hub es un proyecto independiente hecho para la comunidad de Roblox.</p></div>
+    <div class="card"><h3>Cómo se actualizan los scripts</h3>
       <p>Los scripts se actualizan <b>cada vez que realmente hace falta</b>: cuando un juego cambia, cuando aparece un error o cuando hay una mejora que vale la pena.</p>
-      <p style="margin-top:10px">El unico script que se actualiza <b>cada semana</b> es el de <b>Murder Mystery 2 (MM2)</b>.</p>
+      <p style="margin-top:10px">El único script que se actualiza <b>cada semana</b> es el de <b>Murder Mystery 2 (MM2)</b>.</p>
     </div>
-    <div class="card"><h3>Contacto</h3><p>Para dudas, errores o sugerencias usa la pestana Soporte o entra al Discord.</p><div class="row"><button data-go="soporte">Ir a Soporte</button><a class="btn ghost" id="dc2" target="_blank" rel="noopener">Abrir Discord</a></div></div>
+    <div class="card"><h3>Contacto</h3><p>Para dudas, errores o sugerencias usa la pestaña Soporte o entra al Discord.</p><div class="row"><button data-go="soporte">Ir a Soporte</button><a class="btn ghost" id="dc2" target="_blank" rel="noopener">Abrir Discord</a></div></div>
   </section>
 
   <section class="page" id="p-creditos">
-    <h2>Creditos</h2><p class="lead" style="font-size:16px;margin-top:6px">Las personas y cosas que hacen posible Uzivert Hub.</p>
-    <div class="card"><h3>Desarrollo y diseno</h3><p>Uzivert: scripts, interfaz, pagina web, bot y servidor.</p></div>
+    <h2>Créditos</h2><p class="lead" style="font-size:16px;margin-top:6px">Las personas y cosas que hacen posible Uzivert Hub.</p>
+    <div class="card"><h3>Desarrollo y diseño</h3><p>Uzivert: scripts, interfaz, página web, bot y servidor.</p></div>
     <div class="card"><h3>Comunidad</h3><p>Gracias a todos los que prueban los scripts, reportan errores y dan ideas en el Discord. Sin ustedes el proyecto no avanza.</p></div>
-    <div class="card"><h3>Avisos</h3><p>Uzivert Hub no esta afiliado, asociado ni respaldado por Roblox Corporation. Roblox y los nombres de los juegos pertenecen a sus respectivos duenos.</p></div>
-    <div class="card"><h3>Version de la pagina</h3><p id="ver2">v1.0</p></div>
+    <div class="card"><h3>Avisos</h3><p>Uzivert Hub no está afiliado, asociado ni respaldado por Roblox Corporation. Roblox y los nombres de los juegos pertenecen a sus respectivos dueños.</p></div>
+    <div class="card"><h3>Versión de la página</h3><p id="ver2">v1.0</p></div>
   </section>
 
   <section class="page" id="p-terminos">
-    <h2>Terminos y condiciones</h2><p class="lead" style="font-size:16px;margin-top:6px">Al usar esta pagina y los scripts aceptas estos terminos.</p>
+    <h2>Términos y condiciones</h2><p class="lead" style="font-size:16px;margin-top:6px">Al usar esta página y los scripts aceptas estos términos.</p>
     <div class="card terms">
-      <h3>1. Uso bajo tu responsabilidad</h3><p>Los scripts de Uzivert Hub son herramientas para Roblox. Usar scripts de terceros puede ir contra las normas de Roblox o de cada juego y puede causar sanciones en tu cuenta. Los usas bajo tu propia responsabilidad y Uzivert Hub no se hace responsable de baneos, perdidas o danos.</p>
-      <h3>2. Sin garantia</h3><p>Los scripts y la pagina se ofrecen tal cual, sin garantia de que funcionen siempre. Pueden dejar de funcionar cuando un juego cambia, y pueden ponerse en mantenimiento o retirarse sin aviso.</p>
-      <h3>3. Verificacion de cuenta</h3><p>Para verificar tu cuenta solo te pedimos pegar un codigo de palabras en tu descripcion publica de Roblox. Nunca te pedimos contrasena, PIN, correo, codigos de verificacion en dos pasos ni cookies. Guardamos unicamente tu nombre de usuario e ID de Roblox, que son datos publicos. Si alguien te pide lo contrario en nombre de Uzivert Hub, es una estafa.</p>
-      <h3>4. Foro y comunidad</h3><p>Se respetuoso. No se permiten links, estafas, spam, insultos ni contenido ilegal u ofensivo. El staff puede borrar mensajes, cerrar temas y bloquear el acceso al foro sin aviso.</p>
-      <h3>5. Acceso y sanciones</h3><p>Podemos limitar o quitar el acceso a los scripts, a la verificacion o al foro a quien abuse del servicio, intente robar o redistribuir los scripts, o incumpla estos terminos.</p>
-      <h3>6. Propiedad</h3><p>Los scripts, el diseno y el contenido de Uzivert Hub son de su creador. No esta permitido copiarlos, revenderlos ni publicarlos como propios sin permiso. Todos los derechos reservados.</p>
-      <h3>7. Cambios</h3><p>Podemos actualizar estos terminos en cualquier momento. Seguir usando la pagina significa que aceptas la version vigente.</p>
-      <h3>8. Contacto</h3><p>Dudas sobre estos terminos: pestana Soporte o Discord.</p>
+      <h3>1. Uso bajo tu responsabilidad</h3><p>Los scripts de Uzivert Hub son herramientas para Roblox. Usar scripts de terceros puede ir contra las normas de Roblox o de cada juego y puede causar sanciones en tu cuenta. Los usas bajo tu propia responsabilidad y Uzivert Hub no se hace responsable de baneos, pérdidas o daños.</p>
+      <h3>2. Sin garantía</h3><p>Los scripts y la página se ofrecen tal cual, sin garantía de que funcionen siempre. Pueden dejar de funcionar cuando un juego cambia, y pueden ponerse en mantenimiento o retirarse sin aviso.</p>
+      <h3>3. Verificación de cuenta</h3><p>Para verificar tu cuenta solo te pedimos pegar un código de palabras en tu descripción pública de Roblox. Nunca te pedimos contraseña, PIN, correo, códigos de verificación en dos pasos ni cookies. Guardamos únicamente tu nombre de usuario e ID de Roblox, que son datos públicos. Si alguien te pide lo contrario en nombre de Uzivert Hub, es una estafa.</p>
+      <h3>4. Foro y comunidad</h3><p>Sé respetuoso. No se permiten links, estafas, spam, insultos ni contenido ilegal u ofensivo. El staff puede borrar mensajes, cerrar temas y bloquear el acceso al foro sin aviso.</p>
+      <h3>5. Acceso y sanciones</h3><p>Podemos limitar o quitar el acceso a los scripts, a la verificación o al foro a quien abuse del servicio, intente robar o redistribuir los scripts, o incumpla estos términos.</p>
+      <h3>6. Propiedad</h3><p>Los scripts, el diseño y el contenido de Uzivert Hub son de su creador. No está permitido copiarlos, revenderlos ni publicarlos como propios sin permiso. Todos los derechos reservados.</p>
+      <h3>7. Cambios</h3><p>Podemos actualizar estos términos en cualquier momento. Seguir usando la página significa que aceptas la versión vigente.</p>
+      <h3>8. Contacto</h3><p>Dudas sobre estos términos: pestaña Soporte o Discord.</p>
     </div>
   </section>
 
@@ -69,7 +69,7 @@
     <h2>Scripts</h2><p class="lead" style="font-size:16px;margin-top:6px">Los scripts oficiales de Uzivert Hub. Verifica tu cuenta para copiarlos.</p>
     <div class="msg" id="sc-lock"></div>
     <div id="sc-list"></div>
-    <p id="sc-empty" class="hide" style="color:var(--sub)">Todavia no hay scripts publicados.</p>
+    <p id="sc-empty" class="hide" style="color:var(--sub)">Todavía no hay scripts publicados.</p>
   </section>
 
   <section class="page" id="p-foro">
@@ -78,15 +78,15 @@
       <div class="chips" id="f-cats"></div>
       <div class="row" style="margin-top:0;margin-bottom:14px"><button id="f-nuevo">Nuevo tema</button></div>
       <form class="card hide" id="f-form" autocomplete="off">
-        <label for="f-cat">Categoria</label><select id="f-cat"></select>
-        <label for="f-tit">Titulo</label><input id="f-tit" maxlength="80">
+        <label for="f-cat">Categoría</label><select id="f-cat"></select>
+        <label for="f-tit">Título</label><input id="f-tit" maxlength="80">
         <label for="f-txt">Mensaje</label><textarea id="f-txt" maxlength="1500"></textarea>
-        <p class="nota">Por seguridad no se permiten links. Se respetuoso.</p>
+        <p class="nota">Por seguridad no se permiten links. Sé respetuoso.</p>
         <div class="row"><button type="submit" id="f-pub">Publicar</button><button type="button" class="ghost" id="f-cancel">Cancelar</button></div>
         <div class="msg" id="f-msg"></div>
       </form>
       <div id="f-temas"></div>
-      <p id="f-vacio" class="hide" style="color:var(--sub)">Todavia no hay temas. Se el primero en publicar.</p>
+      <p id="f-vacio" class="hide" style="color:var(--sub)">Todavía no hay temas. Sé el primero en publicar.</p>
     </div>
     <div id="f-hilo" class="hide">
       <button class="ghost" id="f-volver">&larr; Volver al foro</button>
@@ -104,25 +104,25 @@
     <h2>Verificar cuenta</h2><p class="lead" style="font-size:16px;margin-top:6px">Demuestra que tu cuenta de Roblox es tuya y obtén el script oficial.</p>
     <div class="card safe">
       <h3>Verificar tu cuenta es seguro</h3>
-      <p>Solo te pedimos pegar <b>5 palabras al azar</b> en tu descripcion publica de Roblox. Con eso comprobamos que la cuenta es tuya. Nada mas.</p>
-      <ul class="ck bad"><li>Nunca te pedimos tu <b>contrasena</b></li><li>Nunca te pedimos tu <b>PIN</b> de la cuenta</li><li>Nunca te pedimos tu <b>correo</b> ni codigos de verificacion en 2 pasos</li><li>Nunca te pedimos tu <b>cookie</b> (.ROBLOSECURITY)</li></ul>
-      <ul class="ck ok"><li>Solo leemos tu <b>nombre de usuario</b> y tu <b>descripcion publica</b></li><li>Guardamos unicamente tu usuario e ID de Roblox (datos publicos)</li><li>Cuando termines, puedes <b>borrar las palabras</b> de tu descripcion</li></ul>
-      <p class="warn">Si alguien te pide tu contrasena, PIN o cookie en nombre de Uzivert Hub, es una estafa: no lo hagas y avisanos en el Discord.</p>
+      <p>Solo te pedimos pegar <b>5 palabras al azar</b> en tu descripción pública de Roblox. Con eso comprobamos que la cuenta es tuya. Nada más.</p>
+      <ul class="ck bad"><li>Nunca te pedimos tu <b>contraseña</b></li><li>Nunca te pedimos tu <b>PIN</b> de la cuenta</li><li>Nunca te pedimos tu <b>correo</b> ni códigos de verificación en 2 pasos</li><li>Nunca te pedimos tu <b>cookie</b> (.ROBLOSECURITY)</li></ul>
+      <ul class="ck ok"><li>Solo leemos tu <b>nombre de usuario</b> y tu <b>descripción pública</b></li><li>Guardamos únicamente tu usuario e ID de Roblox (datos públicos)</li><li>Cuando termines, puedes <b>borrar las palabras</b> de tu descripción</li></ul>
+      <p class="warn">Si alguien te pide tu contraseña, PIN o cookie en nombre de Uzivert Hub, es una estafa: no lo hagas y avísanos en el Discord.</p>
     </div>
     <div class="card" id="v-ok" style="display:none">
-      <h3>Cuenta verificada: <span id="v-name"></span></h3><p>Este es el loadstring oficial. Copialo y pegalo en tu ejecutor.</p>
+      <h3>Cuenta verificada: <span id="v-name"></span></h3><p>Este es el loadstring oficial. Cópialo y pégalo en tu ejecutor.</p>
       <pre class="ls" id="v-ls">Cargando...</pre>
-      <div class="row"><button id="v-copy">Copiar script</button><button class="ghost" id="v-out">Cerrar sesion</button></div>
+      <div class="row"><button id="v-copy">Copiar script</button><button class="ghost" id="v-out">Cerrar sesión</button></div>
     </div>
     <div class="card" id="v-s1">
       <h3>Paso 1: tu usuario de Roblox</h3>
       <label for="v-user">Usuario</label><input id="v-user" maxlength="20" autocomplete="off" placeholder="TuUsuario">
-      <div class="row"><button id="v-start">Obtener codigo</button></div>
+      <div class="row"><button id="v-start">Obtener código</button></div>
     </div>
     <div class="card hide" id="v-s2">
-      <h3>Paso 2: pega el codigo en tu descripcion</h3>
+      <h3>Paso 2: pega el código en tu descripción</h3>
       <div class="code" id="v-code"></div>
-      <ol class="steps"><li>Abre tu perfil de Roblox y entra a <b>Editar perfil</b>.</li><li>Pega el codigo en <b>Acerca de</b> tal cual, con las 5 palabras en minusculas, y guarda.</li><li>Vuelve aqui y toca <b>Verificar</b>. Despues puedes borrar el codigo.</li></ol>
+      <ol class="steps"><li>Abre tu perfil de Roblox y entra a <b>Editar perfil</b>.</li><li>Pega el código en <b>Acerca de</b> tal cual, con las 5 palabras en minúsculas, y guarda.</li><li>Vuelve aquí y toca <b>Verificar</b>. Después puedes borrar el código.</li></ol>
       <div class="row"><button id="v-check">Verificar</button><button class="ghost" id="v-cancel">Cancelar</button></div>
     </div>
     <div class="msg" id="v-msg"></div>
@@ -133,8 +133,8 @@
     <form class="card" id="s-form" autocomplete="off">
       <label for="s-asunto">Asunto</label>
       <select id="s-asunto"><option>Ayuda</option><option>Bug</option><option>Sugerencia</option><option value="Apelacion">Apelación</option><option>Otro</option></select>
-      <label for="s-contacto">Como te contactamos (Discord o Roblox, opcional)</label><input id="s-contacto" maxlength="100" placeholder="usuario#0000 / TuUsuarioRoblox">
-      <label for="s-msg">Mensaje</label><textarea id="s-msg" maxlength="1500" placeholder="Explica con detalle que paso..."></textarea>
+      <label for="s-contacto">Cómo te contactamos (Discord o Roblox, opcional)</label><input id="s-contacto" maxlength="100" placeholder="usuario#0000 / TuUsuarioRoblox">
+      <label for="s-msg">Mensaje</label><textarea id="s-msg" maxlength="1500" placeholder="Explica con detalle qué pasó..."></textarea>
       <input class="hp" id="s-web" tabindex="-1" aria-hidden="true" autocomplete="off">
       <div class="row"><button type="submit" id="s-send">Enviar mensaje</button><span id="s-count" style="color:var(--sub);font-size:13px;align-self:center">0/1500</span></div>
       <div class="msg" id="s-res"></div>
