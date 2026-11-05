@@ -249,16 +249,17 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   if (b.logo === undefined && previo) logo = previo.logo || '';
   else { try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); } }
   const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
+  let aviso = '';
   try {
     await store.write(`scripts/${slug}.lua`, code);
     logoCache.delete(slug);
-    if (logo) { try { await guardarLogo(slug, logo); } catch (e) { console.warn('logo:', e.message); } }
+    if (logo) { try { await guardarLogo(slug, logo); } catch (e) { console.warn('logo:', e.message); aviso = 'el logo no se pudo descargar y guardar (' + e.message + '). Link: ' + logo; } }
     else { try { await store.remove(`logos/${slug}.txt`); } catch {} }
     const list = (await loadIndex()).filter((s) => s.slug !== slug);
     list.push(meta); list.sort((a, c) => a.name.localeCompare(c.name));
     await saveIndex(list);
     cache.delete(slug);
-    res.json({ ok: true, script: meta });
+    res.json({ ok: true, script: meta, aviso });
   } catch (e) { console.error('guardar script:', e.message); res.status(500).json({ error: 'No se pudo guardar: ' + e.message }); }
 });
 app.delete('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
