@@ -8,7 +8,7 @@
 <header>
   <div class="brand" id="brand" role="link" tabindex="0"><div class="orb"></div>UZIVERT HUB</div>
   <button class="burger" id="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button>
-  <nav id="nav"><a data-p="inicio" class="on">Inicio</a><a data-p="scripts">Scripts</a><a data-p="foro">Foro</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a></nav>
+  <nav id="nav"><span class="pill" id="pill"></span><a data-p="inicio" class="on">Inicio</a><a data-p="scripts">Scripts</a><a data-p="foro">Foro</a><a data-p="verificar">Verificar</a><a data-p="soporte">Soporte</a></nav>
 </header>
 <div class="overlay" id="overlay"></div>
 <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Menú">
@@ -17,7 +17,7 @@
     <a data-p="creador">Creador</a>
     <a data-p="creditos">Créditos</a>
     <a data-p="terminos">Términos y condiciones</a>
-    <a id="dc" target="_blank" rel="noopener">Discord</a>
+    <a id="dc" class="dcbtn" target="_blank" rel="noopener">Discord</a>
   </div>
   <div class="dr-foot"><div>Versión de la página</div><b id="ver">v1.0</b><div style="margin-top:10px">Uzivert Hub. Todos los derechos reservados.</div></div>
 </aside>
@@ -40,7 +40,7 @@
       <p>Los scripts se actualizan <b>cada vez que realmente hace falta</b>: cuando un juego cambia, cuando aparece un error o cuando hay una mejora que vale la pena.</p>
       <p style="margin-top:10px">El único script que se actualiza <b>cada semana</b> es el de <b>Murder Mystery 2 (MM2)</b>.</p>
     </div>
-    <div class="card"><h3>Contacto</h3><p>Para dudas, errores o sugerencias usa la pestaña Soporte o entra al Discord.</p><div class="row"><button data-go="soporte">Ir a Soporte</button><a class="btn ghost" id="dc2" target="_blank" rel="noopener">Abrir Discord</a></div></div>
+    <div class="card"><h3>Contacto</h3><p>Para dudas, errores o sugerencias usa la pestaña Soporte o entra al Discord.</p><div class="row"><button data-go="soporte">Ir a Soporte</button><a class="btn dcbtn" id="dc2" target="_blank" rel="noopener">Abrir Discord</a></div></div>
   </section>
 
   <section class="page" id="p-creditos">
