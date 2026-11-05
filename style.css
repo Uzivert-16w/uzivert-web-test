@@ -109,22 +109,22 @@ footer{padding:28px 16px 34px;line-height:1.5}
 .dcbtn:hover svg{transform:rotate(-12deg) scale(1.12)}
 .dr-list a.dcbtn{display:flex;align-items:center;gap:10px;border:0}
 .page.on{animation:in .45s cubic-bezier(.2,.8,.2,1)}
-.page.on .card,.page.on .hero>*{opacity:0;animation:rise .5s cubic-bezier(.2,.8,.2,1) forwards}
-.page.on .card:nth-child(1),.page.on .hero>*:nth-child(1){animation-delay:.05s}
-.page.on .card:nth-child(2),.page.on .hero>*:nth-child(2){animation-delay:.1s}
-.page.on .card:nth-child(3),.page.on .hero>*:nth-child(3){animation-delay:.15s}
-.page.on .card:nth-child(4),.page.on .hero>*:nth-child(4){animation-delay:.2s}
-.page.on .card:nth-child(n+5),.page.on .hero>*:nth-child(n+5){animation-delay:.25s}
+.page.on .card,.page.on .hero>*:not(.orb){opacity:0;animation:rise .5s cubic-bezier(.2,.8,.2,1) forwards}
+.page.on .card:nth-child(1),.page.on .hero>*:not(.orb):nth-child(1){animation-delay:.05s}
+.page.on .card:nth-child(2),.page.on .hero>*:not(.orb):nth-child(2){animation-delay:.1s}
+.page.on .card:nth-child(3),.page.on .hero>*:not(.orb):nth-child(3){animation-delay:.15s}
+.page.on .card:nth-child(4),.page.on .hero>*:not(.orb):nth-child(4){animation-delay:.2s}
+.page.on .card:nth-child(n+5),.page.on .hero>*:not(.orb):nth-child(n+5){animation-delay:.25s}
 @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .card{transition:transform .25s,border-color .25s,box-shadow .25s}
 .card:hover{transform:translateY(-3px);border-color:#3a3d4a;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 button,.btn{transition:transform .15s,filter .2s,box-shadow .2s}
 button:active,.btn:active{transform:scale(.96)}
-.hero .orb{animation:float 4s ease-in-out infinite!important}
+.hero .orb{animation:float 4s ease-in-out infinite}
 @keyframes float{0%,100%{translate:0 0}50%{translate:0 -8px}}
 .drawer.on .dr-list a{animation:slidein .35s cubic-bezier(.2,.8,.2,1) both}
 .drawer.on .dr-list a:nth-child(1){animation-delay:.08s}.drawer.on .dr-list a:nth-child(2){animation-delay:.14s}.drawer.on .dr-list a:nth-child(3){animation-delay:.2s}.drawer.on .dr-list a:nth-child(4){animation-delay:.26s}
 @keyframes slidein{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 .dr-list a{transition:background .2s,transform .2s}.dr-list a:hover{transform:translateX(-4px)}
 .burger:active span:nth-child(2){transform:scaleX(.6)}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.page.on .card,.page.on .hero>*{opacity:1}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.page.on .card,.page.on .hero>*:not(.orb){opacity:1}}
