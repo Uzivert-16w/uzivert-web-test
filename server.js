@@ -238,10 +238,15 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   if (!code.trim()) return res.status(400).json({ error: 'El script está vacío.' });
   if (code.length > 1_000_000) return res.status(400).json({ error: 'El script es demasiado grande (max 1 MB).' });
   let logo = '';
-  try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); }
+  const previo = (await loadIndex()).find((x) => x.slug === slug);
+  if (b.logo === undefined && previo) logo = previo.logo || '';
+  else { try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); } }
   const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
   try {
     await store.write(`scripts/${slug}.lua`, code);
+    logoCache.delete(slug);
+    if (logo) { try { await guardarLogo(slug, logo); } catch (e) { console.warn('logo:', e.message); } }
+    else { try { await store.remove(`logos/${slug}.txt`); } catch {} }
     const list = (await loadIndex()).filter((s) => s.slug !== slug);
     list.push(meta); list.sort((a, c) => a.name.localeCompare(c.name));
     await saveIndex(list);
@@ -253,6 +258,8 @@ app.delete('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   if (!SLUG.test(req.params.slug)) return res.status(400).json({ error: 'Slug inválido' });
   try {
     await store.remove(`scripts/${req.params.slug}.lua`);
+    try { await store.remove(`logos/${req.params.slug}.txt`); } catch {}
+    logoCache.delete(req.params.slug);
     await saveIndex((await loadIndex()).filter((s) => s.slug !== req.params.slug));
     cache.delete(req.params.slug);
     res.json({ ok: true });
@@ -311,28 +318,45 @@ app.get('/api/scripts', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
 });
 
-// Logo servido desde la propia página (evita bloqueos de hotlink / CSP del navegador).
+// Logo servido desde la propia página. Se guarda una copia en el almacenamiento (logos/<slug>.txt)
+// para que no dependa de que Roblox responda cada vez (ni se pierda cuando Render reinicia).
 const logoCache = new Map();
+async function descargarLogo(url) {
+  const u = new URL(url);
+  if (u.protocol !== 'https:' || !u.hostname.includes('.') || /^[\d.]+$/.test(u.hostname)) throw new Error('logo no permitido');
+  const r = await fetch(u, { signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 UzivertWeb' } });
+  const type = String(r.headers.get('content-type') || '').split(';')[0];
+  if (!r.ok || !/^image\/(png|jpeg|webp|gif)$/.test(type)) throw new Error('no se pudo descargar la imagen (HTTP ' + r.status + ')');
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length > 2e6) throw new Error('imagen demasiado grande');
+  return { type, buf };
+}
+async function guardarLogo(slug, url) {
+  const l = await descargarLogo(url);
+  await store.write(`logos/${slug}.txt`, `${l.type}\n${l.buf.toString('base64')}`);
+  logoCache.set(slug, { url, type: l.type, buf: l.buf });
+  return l;
+}
+async function leerLogo(slug, meta) {
+  const c = logoCache.get(slug);
+  if (c && c.url === meta.logo) return c;
+  try {
+    const t = await store.read(`logos/${slug}.txt`);
+    if (t) { const k = t.indexOf('\n'); const type = t.slice(0, k); const buf = Buffer.from(t.slice(k + 1), 'base64'); if (buf.length) { const e = { url: meta.logo, type, buf }; logoCache.set(slug, e); return e; } }
+  } catch {}
+  const l = await guardarLogo(slug, meta.logo);   // primera vez / copia perdida: descarga y guarda
+  return { url: meta.logo, ...l };
+}
 app.get('/logo/:slug', async (req, res) => {
   const slug = req.params.slug;
   if (!SLUG.test(slug)) return res.status(404).end('');
   try {
     const meta = (await loadIndex()).find((s) => s.slug === slug);
     if (!meta || !meta.logo) return res.status(404).end('');
-    let c = logoCache.get(slug);
-    if (!c || c.url !== meta.logo || Date.now() - c.t > 3600e3) {
-      const u = new URL(meta.logo);
-      if (u.protocol !== 'https:' || !u.hostname.includes('.') || /^[\d.]+$/.test(u.hostname)) return res.status(404).end('');
-      const r = await fetch(u, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'Mozilla/5.0 UzivertWeb' } });
-      const type = String(r.headers.get('content-type') || '').split(';')[0];
-      if (!r.ok || !/^image\/(png|jpeg|webp|gif)$/.test(type)) return res.status(404).end('');
-      const buf = Buffer.from(await r.arrayBuffer());
-      if (buf.length > 2e6) return res.status(404).end('');
-      c = { t: Date.now(), url: meta.logo, type, buf }; logoCache.set(slug, c);
-    }
+    const c = await leerLogo(slug, meta);
     res.setHeader('Content-Type', c.type); res.setHeader('Cache-Control', 'public, max-age=3600');
     res.end(c.buf);
-  } catch (e) { res.status(404).end(''); }
+  } catch (e) { console.warn('logo', slug, e.message); res.status(404).end(''); }
 });
 
 // ---------- FORO ----------
