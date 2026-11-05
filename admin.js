@@ -67,8 +67,8 @@ $('e-save').onclick = async () => {
   if (!$('e-code').value.trim()) { show($('em'), 'Pega el loader o el script.', false); return; }
   const b = $('e-save'); b.disabled = true;
   try {
-    await api('/api/admin/scripts/' + encodeURIComponent(slug), { method: 'PUT', body: { name: $('e-name').value, game: $('e-game').value, version: $('e-ver').value, description: $('e-desc').value, estado: $('e-estado').value, logo: $('e-logo').value, verificacion: $('e-verif').value, code: $('e-code').value } });
-    editing = slug; $('e-slug').disabled = true; showLink(slug); show($('em'), 'Guardado.', true); refresh();
+    const rr = await api('/api/admin/scripts/' + encodeURIComponent(slug), { method: 'PUT', body: { name: $('e-name').value, game: $('e-game').value, version: $('e-ver').value, description: $('e-desc').value, estado: $('e-estado').value, logo: $('e-logo').value, verificacion: $('e-verif').value, code: $('e-code').value } });
+    editing = slug; $('e-slug').disabled = true; showLink(slug); show($('em'), rr && rr.aviso ? 'Guardado, pero ' + rr.aviso : 'Guardado.', !(rr && rr.aviso)); refresh();
   } catch (e) { show($('em'), e.message, false); }
   b.disabled = false;
 };
