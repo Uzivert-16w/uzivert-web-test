@@ -128,3 +128,7 @@ button:active,.btn:active{transform:scale(.96)}
 .dr-list a{transition:background .2s,transform .2s}.dr-list a:hover{transform:translateX(-4px)}
 .burger:active span:nth-child(2){transform:scaleX(.6)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.page.on .card,.page.on .hero>*:not(.orb){opacity:1}}
+
+.sc{flex-wrap:nowrap;align-items:center}.sc .inf{flex:1;min-width:0}.sc img.logo{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none;border:1px solid var(--line);background:#14151c}
+@media(max-width:480px){.sc{flex-wrap:wrap}.sc .cp{width:100%}}
+.sc .badge{display:inline-block;margin:2px 0 4px}
