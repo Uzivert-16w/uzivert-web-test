@@ -72,7 +72,7 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use((req, res, next) => {
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   next();
@@ -216,6 +216,20 @@ app.get('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
     res.json({ ...meta, code: (await store.read(`scripts/${meta.slug}.lua`)) || '' });
   } catch (e) { res.status(500).json({ error: 'No se pudo leer el almacenamiento.' }); }
 });
+// Logo: un link https de imagen, o el ID numérico del juego (se busca su icono en Roblox).
+async function resolverLogo(v) {
+  v = String(v || '').trim().slice(0, 300);
+  if (!v) return '';
+  if (/^https:\/\/[^\s"'<>]+$/i.test(v)) return v;
+  if (/^\d{3,15}$/.test(v)) {
+    const r = await fetch(`https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${v}&returnPolicy=PlaceHolder&size=256x256&format=Png&isCircular=false`, { signal: AbortSignal.timeout(8000) });
+    const d = r.ok ? await r.json() : null;
+    const u = d && d.data && d.data[0] && d.data[0].imageUrl;
+    if (u && /^https:\/\//.test(u)) return u;
+    throw new Error('No se encontró el icono de ese ID de juego.');
+  }
+  throw new Error('El logo debe ser un link que empiece con https:// o el ID del juego (solo números).');
+}
 app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   const slug = req.params.slug;
   if (!SLUG.test(slug)) return res.status(400).json({ error: 'Slug inválido (minúsculas, números y guiones, 2-40).' });
@@ -223,7 +237,9 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   const code = String(b.code == null ? '' : b.code);
   if (!code.trim()) return res.status(400).json({ error: 'El script está vacío.' });
   if (code.length > 1_000_000) return res.status(400).json({ error: 'El script es demasiado grande (max 1 MB).' });
-  const meta = { slug, name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
+  let logo = '';
+  try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); }
+  const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
   try {
     await store.write(`scripts/${slug}.lua`, code);
     const list = (await loadIndex()).filter((s) => s.slug !== slug);
@@ -290,7 +306,7 @@ app.get('/api/scripts', async (req, res) => {
       return `loadstring(game:HttpGet("${base}/s/${x.slug}"))()`;
     };
     const list = [];
-    for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, loadstring: verificado ? await textoCopiable(x) : null });
+    for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, logo: x.logo || '', libre: x.verificacion === 'no', loadstring: (verificado || x.verificacion === 'no') ? await textoCopiable(x) : null });
     res.json({ verificado, scripts: list });
   } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
 });
