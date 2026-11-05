@@ -222,11 +222,18 @@ async function resolverLogo(v) {
   if (!v) return '';
   if (/^https:\/\/[^\s"'<>]+$/i.test(v)) return v;
   if (/^\d{3,15}$/.test(v)) {
-    const r = await fetch(`https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${v}&returnPolicy=PlaceHolder&size=256x256&format=Png&isCircular=false`, { signal: AbortSignal.timeout(8000) });
-    const d = r.ok ? await r.json() : null;
-    const u = d && d.data && d.data[0] && d.data[0].imageUrl;
-    if (u && /^https:\/\//.test(u)) return u;
-    throw new Error('No se encontró el icono de ese ID de juego.');
+    const get = async (url) => { try { const r = await fetch(url, { signal: AbortSignal.timeout(8000) }); return r.ok ? await r.json() : null; } catch { return null; } };
+    const icono = (d) => { const x = d && d.data && d.data[0]; return x && x.state === 'Completed' && /^https:\/\//.test(x.imageUrl || '') ? x.imageUrl : null; };
+    const q = 'returnPolicy=PlaceHolder&size=256x256&format=Png&isCircular=false';
+    // El número puede ser ID de lugar (place) o de universo: probamos las dos formas.
+    const uni = await get(`https://apis.roblox.com/universes/v1/places/${v}/universe`);
+    const candidatos = [];
+    if (uni && uni.universeId) candidatos.push(uni.universeId);
+    candidatos.push(v);
+    for (const u of candidatos) { const url = icono(await get(`https://thumbnails.roblox.com/v1/games/icons?universeIds=${u}&${q}`)); if (url) return url; }
+    const url = icono(await get(`https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${v}&${q}`));
+    if (url) return url;
+    throw new Error('Roblox no devolvió un icono para ese ID (puede ser que el juego no tenga icono todavía). Prueba con otro ID del juego o pega el link de una imagen.');
   }
   throw new Error('El logo debe ser un link que empiece con https:// o el ID del juego (solo números).');
 }
