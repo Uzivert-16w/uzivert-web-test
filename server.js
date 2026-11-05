@@ -72,7 +72,7 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use((req, res, next) => {
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; media-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   next();
@@ -311,6 +311,30 @@ app.get('/api/scripts', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
 });
 
+// Logo servido desde la propia página (evita bloqueos de hotlink / CSP del navegador).
+const logoCache = new Map();
+app.get('/logo/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  if (!SLUG.test(slug)) return res.status(404).end('');
+  try {
+    const meta = (await loadIndex()).find((s) => s.slug === slug);
+    if (!meta || !meta.logo) return res.status(404).end('');
+    let c = logoCache.get(slug);
+    if (!c || c.url !== meta.logo || Date.now() - c.t > 3600e3) {
+      const u = new URL(meta.logo);
+      if (u.protocol !== 'https:' || !u.hostname.includes('.') || /^[\d.]+$/.test(u.hostname)) return res.status(404).end('');
+      const r = await fetch(u, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'Mozilla/5.0 UzivertWeb' } });
+      const type = String(r.headers.get('content-type') || '').split(';')[0];
+      if (!r.ok || !/^image\/(png|jpeg|webp|gif)$/.test(type)) return res.status(404).end('');
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 2e6) return res.status(404).end('');
+      c = { t: Date.now(), url: meta.logo, type, buf }; logoCache.set(slug, c);
+    }
+    res.setHeader('Content-Type', c.type); res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.end(c.buf);
+  } catch (e) { res.status(404).end(''); }
+});
+
 // ---------- FORO ----------
 const CATEGORIAS = ['General', 'Ayuda', 'Sugerencias', 'Scripts'];
 const MAX_TEMAS = 300, MAX_RESP = 300;
@@ -451,6 +475,24 @@ app.get('/s/:slug', async (req, res) => {
     cache.set(slug, { t: Date.now(), code });
     res.send(code);
   } catch (e) { res.status(502).send('-- error temporal'); }
+});
+
+// Video tutorial (con soporte de Range para que el celular pueda avanzar/reproducir).
+app.get('/tutorial.mp4', (req, res) => {
+  const f = [path.join(__dirname, 'public', 'tutorial.mp4'), path.join(__dirname, 'tutorial.mp4')].find((x) => require('fs').existsSync(x));
+  if (!f) return res.status(404).type('text/plain').send('Video no disponible');
+  const size = require('fs').statSync(f).size;
+  res.setHeader('Content-Type', 'video/mp4'); res.setHeader('Accept-Ranges', 'bytes'); res.setHeader('Cache-Control', 'public, max-age=3600');
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (m && (m[1] || m[2])) {
+    let a = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
+    let b = m[1] && m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+    if (a > b || a >= size) { res.statusCode = 416; res.setHeader('Content-Range', `bytes */${size}`); return res.end(); }
+    res.statusCode = 206; res.setHeader('Content-Range', `bytes ${a}-${b}/${size}`); res.setHeader('Content-Length', b - a + 1);
+    return require('fs').createReadStream(f, { start: a, end: b }).pipe(res);
+  }
+  res.setHeader('Content-Length', size);
+  require('fs').createReadStream(f).pipe(res);
 });
 
 // Archivos de la página: carpeta public/, o (si subiste todo suelto en la raiz) solo estos archivos permitidos.
