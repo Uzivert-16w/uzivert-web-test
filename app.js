@@ -21,6 +21,18 @@ function movePill() {
   pill.style.width = on.offsetWidth + 'px'; pill.style.transform = 'translateX(' + on.offsetLeft + 'px)'; pill.style.opacity = 1;
 }
 addEventListener('resize', movePill); addEventListener('load', movePill);
+// Video tutorial: se crea y reproduce al tocar el botón
+$('vid-btn').addEventListener('click', () => {
+  const box = $('vid-box'), btn = $('vid-btn');
+  if (!box.classList.contains('hide')) { const v = box.querySelector('video'); if (v) v.pause(); box.classList.add('hide'); btn.lastChild.textContent = 'Ver video tutorial'; return; }
+  if (!box.firstChild) {
+    const v = document.createElement('video'); v.src = '/tutorial.mp4'; v.controls = true; v.playsInline = true; v.preload = 'metadata'; v.className = 'tuto';
+    v.onerror = () => { box.textContent = ''; box.append(txt('p', 'El video todavía no está disponible.', 'nota')); };
+    box.append(v);
+  }
+  box.classList.remove('hide'); btn.lastChild.textContent = 'Ocultar video';
+  const v = box.querySelector('video'); if (v) { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+});
 function go(p) {
   document.querySelectorAll('.page').forEach((s) => s.classList.toggle('on', s.id === 'p-' + p));
   document.querySelectorAll('#nav a[data-p]').forEach((a) => a.classList.toggle('on', a.dataset.p === p));
@@ -100,7 +112,8 @@ async function loadScripts() {
     d.scripts.forEach((s) => {
       const card = document.createElement('div'); card.className = 'card';
       const top = document.createElement('div'); top.className = 'sc';
-      if (s.logo) { const im = document.createElement('img'); im.className = 'logo'; im.src = s.logo; im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); top.append(im); }
+      const tile = txt('div', (s.name || '?').trim().charAt(0).toUpperCase(), 'logo tile'); top.append(tile);
+      if (s.logo) { const im = document.createElement('img'); im.className = 'logo'; im.alt = ''; im.onload = () => tile.replaceWith(im); im.src = '/logo/' + encodeURIComponent(s.slug) + '?v=' + encodeURIComponent(s.updatedAt || ''); }
       const info = document.createElement('div'); info.className = 'inf';
       info.append(txt('h3', s.name));
       if (s.libre) info.append(txt('span', 'Sin verificación', 'badge'));
