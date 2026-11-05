@@ -96,12 +96,14 @@ async function loadScripts() {
     const d = await api('/api/scripts');
     const box = $('sc-list'); box.textContent = '';
     $('sc-empty').classList.toggle('hide', d.scripts.length > 0);
-    if (!d.verificado && d.scripts.length) { show($('sc-lock'), 'Verifica tu cuenta para poder copiar los scripts.', false); const b = txt('button', 'Ir a verificar'); b.style.marginLeft = '10px'; b.onclick = () => go('verificar'); $('sc-lock').append(b); } else $('sc-lock').className = 'msg';
+    if (!d.verificado && d.scripts.some((x) => !x.libre)) { show($('sc-lock'), 'Verifica tu cuenta para poder copiar los scripts.', false); const b = txt('button', 'Ir a verificar'); b.style.marginLeft = '10px'; b.onclick = () => go('verificar'); $('sc-lock').append(b); } else $('sc-lock').className = 'msg';
     d.scripts.forEach((s) => {
       const card = document.createElement('div'); card.className = 'card';
       const top = document.createElement('div'); top.className = 'sc';
-      const info = document.createElement('div');
+      if (s.logo) { const im = document.createElement('img'); im.className = 'logo'; im.src = s.logo; im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); top.append(im); }
+      const info = document.createElement('div'); info.className = 'inf';
       info.append(txt('h3', s.name));
+      if (s.libre) info.append(txt('span', 'Sin verificación', 'badge'));
       const meta = [s.game, s.version, 'Actualizado ' + fdate(s.updatedAt)].filter(Boolean).join('  |  ');
       info.append(txt('div', meta, 'meta'));
       if (s.description) info.append(txt('p', s.description));
