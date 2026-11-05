@@ -333,10 +333,17 @@ async function descargarLogo(url) {
   const u = new URL(url);
   if (u.protocol !== 'https:' || !u.hostname.includes('.') || /^[\d.]+$/.test(u.hostname)) throw new Error('logo no permitido');
   const r = await fetch(u, { signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 UzivertWeb' } });
-  const type = String(r.headers.get('content-type') || '').split(';')[0];
-  if (!r.ok || !/^image\/(png|jpeg|webp|gif)$/.test(type)) throw new Error('no se pudo descargar la imagen (HTTP ' + r.status + ')');
+  if (!r.ok) throw new Error('no se pudo descargar la imagen (HTTP ' + r.status + ')');
   const buf = Buffer.from(await r.arrayBuffer());
   if (buf.length > 2e6) throw new Error('imagen demasiado grande');
+  // Roblox a veces manda un content-type raro: se detecta el formato por los primeros bytes.
+  const h = buf.subarray(0, 12);
+  let type = null;
+  if (h[0] === 0x89 && h[1] === 0x50 && h[2] === 0x4e && h[3] === 0x47) type = 'image/png';
+  else if (h[0] === 0xff && h[1] === 0xd8) type = 'image/jpeg';
+  else if (h.subarray(0, 3).toString() === 'GIF') type = 'image/gif';
+  else if (h.subarray(0, 4).toString() === 'RIFF' && h.subarray(8, 12).toString() === 'WEBP') type = 'image/webp';
+  if (!type) throw new Error('el link no es una imagen válida (tipo ' + (r.headers.get('content-type') || '?') + ')');
   return { type, buf };
 }
 async function guardarLogo(slug, url) {
