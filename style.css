@@ -132,3 +132,9 @@ button:active,.btn:active{transform:scale(.96)}
 .sc{flex-wrap:nowrap;align-items:center}.sc .inf{flex:1;min-width:0}.sc img.logo{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none;border:1px solid var(--line);background:#14151c}
 @media(max-width:480px){.sc{flex-wrap:wrap}.sc .cp{width:100%}}
 .sc .badge{display:inline-block;margin:2px 0 4px}
+.sc .tile{display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:12px;flex:none;background:#14151c;border:1px solid var(--line);font-weight:800;font-size:24px;color:var(--sub)}
+
+.card.vid{border-color:#2a2d6b;background:linear-gradient(180deg,#0e1030,#0d0e14)}
+.vbtn{margin-top:12px;background:#5865F2;color:#fff}
+.vbtn:hover{background:#4752c4;filter:none}
+video.tuto{display:block;width:100%;max-height:70vh;margin-top:14px;border-radius:14px;background:#000;border:1px solid var(--line)}
