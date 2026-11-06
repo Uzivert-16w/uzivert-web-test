@@ -138,3 +138,19 @@ button:active,.btn:active{transform:scale(.96)}
 .vbtn{margin-top:12px;background:#5865F2;color:#fff}
 .vbtn:hover{background:#4752c4;filter:none}
 video.tuto{display:block;width:100%;max-height:70vh;margin-top:14px;border-radius:14px;background:#000;border:1px solid var(--line)}
+
+/* Estado y FAQ */
+.es-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.es-row:first-of-type{border-top:0}
+.es-l{min-width:0}.es-l b{display:block;font-size:17px}.es-l span{color:var(--sub);font-size:14px}
+.es-r{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;flex:none}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;background:#4ade80;box-shadow:0 0 10px #4ade80}
+.dot.mant{background:#fbbf24;box-shadow:0 0 10px #fbbf24}.dot.bad{background:#ff6b78;box-shadow:0 0 10px #ff6b78}
+.es-top.ok{border-color:#1d4a2f;background:#0b1710}.es-top.warn{border-color:#5a4a18;background:#17130a}
+.badge.warn{background:#3a2e0c;color:#fbbf24}.badge.bad{background:#3a1218;color:#ff6b78}
+details.faq{background:var(--card,#0d0e14);border:1px solid var(--line);border-radius:14px;margin-top:10px;overflow:hidden}
+details.faq summary{cursor:pointer;list-style:none;padding:16px 18px;font-weight:700;font-size:17px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary::after{content:'+';font-size:24px;color:var(--sub);transition:transform .25s}
+details.faq[open] summary::after{transform:rotate(45deg)}
+details.faq p{padding:0 18px 16px;color:var(--sub);line-height:1.5;animation:rise .3s both}
