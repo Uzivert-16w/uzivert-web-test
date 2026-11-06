@@ -146,8 +146,7 @@ async function loadScripts() {
       const info = document.createElement('div'); info.className = 'inf';
       info.append(txt('h3', s.name));
       if (s.libre) info.append(txt('span', 'Sin verificación', 'badge'));
-      if (s.situacion === 'mant') info.append(txt('span', 'En mantenimiento', 'badge warn'));
-      if (s.situacion === 'caido') info.append(txt('span', 'No funciona ahora', 'badge bad'));
+      const sit = SIT[s.situacion] || SIT.ok; const st = document.createElement('div'); st.className = 'st ' + sit[0]; st.append(txt('i', '', 'dot ' + sit[0]), txt('span', sit[1])); info.append(st);
       const meta = [s.game, s.version, 'Actualizado ' + fdate(s.updatedAt)].filter(Boolean).join('  |  ');
       info.append(txt('div', meta, 'meta'));
       if (s.description) info.append(txt('p', s.description));
