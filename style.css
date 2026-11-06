@@ -1,7 +1,7 @@
 :root{--bg:#050507;--card:#0d0e14;--line:#23252f;--tx:#f2f3f6;--sub:#9a9da6;--ok:#4ade80;--err:#ff6b78;--ac:#e8eaef}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%}
-body{background:var(--bg);color:var(--tx);font:16px/1.55 "Inter","Segoe UI",system-ui,-apple-system,Arial,sans-serif;position:relative;overflow-x:hidden}
+body{background:var(--bg);color:var(--tx);font:16px/1.55 "Montserrat","Gotham","Inter","Segoe UI",system-ui,-apple-system,Arial,sans-serif;position:relative;overflow-x:hidden}
 canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none}
 header,main,footer{position:relative;z-index:1}
 header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 12px;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(5,5,7,.78);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
@@ -154,3 +154,11 @@ details.faq summary::-webkit-details-marker{display:none}
 details.faq summary::after{content:'+';font-size:24px;color:var(--sub);transition:transform .25s}
 details.faq[open] summary::after{transform:rotate(45deg)}
 details.faq p{padding:0 18px 16px;color:var(--sub);line-height:1.5;animation:rise .3s both}
+
+/* Tipografía estilo Gotham (la del hub): Montserrat */
+h1,h2,.brand,.title{font-family:"Montserrat","Gotham",sans-serif;font-weight:900}
+h1{letter-spacing:3px}
+h2{letter-spacing:.5px}
+h3,h4,button,.btn,.nv span,nav a{font-family:"Montserrat","Gotham",sans-serif;font-weight:700}
+.sc .st{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin:4px 0 2px;color:#4ade80}
+.sc .st.mant{color:#fbbf24}.sc .st.bad{color:#ff6b78}
