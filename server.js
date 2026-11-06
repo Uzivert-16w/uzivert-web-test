@@ -82,7 +82,7 @@ const noStore = (res) => res.setHeader('Cache-Control', 'no-store');
 const needJson = (req, res, next) => (req.is('application/json') && req.get('X-Requested-With') === 'uz' ? next() : res.status(400).json({ error: 'Petición inválida' }));
 const ip = (req) => req.ip || 'x';
 
-app.get('/api/config', (req, res) => res.json({ nombre: SITE_NAME, discord: DISCORD_INVITE, soporte: !!WEBHOOK_SOPORTE, version: env.SITE_VERSION || 'v1.0' }));
+app.get('/api/config', (req, res) => res.json({ nombre: SITE_NAME, discord: DISCORD_INVITE, soporte: !!WEBHOOK_SOPORTE, version: env.SITE_VERSION || 'v1.2' }));
 
 // ---------- SOPORTE -> webhook ----------
 const ASUNTOS = ['Ayuda', 'Bug', 'Sugerencia', 'Apelacion', 'Otro'];
@@ -248,7 +248,7 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   const previo = (await loadIndex()).find((x) => x.slug === slug);
   if (b.logo === undefined && previo) logo = previo.logo || '';
   else { try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); } }
-  const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
+  const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', situacion: ['ok', 'mant', 'caido'].includes(b.situacion) ? b.situacion : (previo && previo.situacion) || 'ok', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
   let aviso = '';
   try {
     await store.write(`scripts/${slug}.lua`, code);
@@ -321,9 +321,25 @@ app.get('/api/scripts', async (req, res) => {
       return `loadstring(game:HttpGet("${base}/s/${x.slug}"))()`;
     };
     const list = [];
-    for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, logo: x.logo || '', libre: x.verificacion === 'no', loadstring: (verificado || x.verificacion === 'no') ? await textoCopiable(x) : null });
+    for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, logo: x.logo || '', situacion: x.situacion || 'ok', libre: x.verificacion === 'no', loadstring: (verificado || x.verificacion === 'no') ? await textoCopiable(x) : null });
     res.json({ verificado, scripts: list });
   } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
+});
+
+// ---------- ESTADO ----------
+let estadoCache = { t: 0, data: null };
+app.get('/api/estado', async (req, res) => {
+  noStore(res);
+  try {
+    if (!estadoCache.data || Date.now() - estadoCache.t > 45e3) {
+      let apiOk = false, ms = null;
+      const t0 = Date.now();
+      try { const r = await fetch(`${API_URL}/`, { signal: AbortSignal.timeout(15000) }); apiOk = r.status < 500; ms = Date.now() - t0; } catch {}
+      const scripts = (await loadIndex()).filter((x) => x.estado === 'activo').map((x) => ({ name: x.name, game: x.game, version: x.version, situacion: x.situacion || 'ok', updatedAt: x.updatedAt }));
+      estadoCache = { t: Date.now(), data: { web: { ok: true }, api: { ok: apiOk, ms }, scripts, chequeado: new Date().toISOString() } };
+    }
+    res.json(estadoCache.data);
+  } catch (e) { res.status(500).json({ error: 'No se pudo leer el estado.' }); }
 });
 
 // Logo servido desde la propia página. Se guarda una copia en el almacenamiento (logos/<slug>.txt)
