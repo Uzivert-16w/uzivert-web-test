@@ -33,6 +33,23 @@ $('vid-btn').addEventListener('click', () => {
   box.classList.remove('hide'); btn.lastChild.textContent = 'Ocultar video';
   const v = box.querySelector('video'); if (v) { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
 });
+// Página de Updates (los que publicas desde el panel)
+async function cargarUpdates() {
+  const box = $('up-box');
+  try {
+    const d = await api('/api/updates'); box.textContent = '';
+    if (!d.length) { box.append(txt('p', 'Todavía no hay actualizaciones publicadas.', 'nota')); return; }
+    d.forEach((u) => {
+      const c = document.createElement('div'); c.className = 'card up';
+      const top = document.createElement('div'); top.className = 'up-top';
+      top.append(txt('h3', u.titulo)); if (u.version) top.append(txt('span', 'v' + String(u.version).replace(/^v/i, ''), 'badge'));
+      c.append(top);
+      if (u.fecha) c.append(txt('small', fdate(u.fecha), 'up-fecha'));
+      c.append(txt('p', u.descripcion, 'up-desc'));
+      box.append(c);
+    });
+  } catch { box.textContent = ''; box.append(txt('p', 'No se pudieron cargar las actualizaciones.', 'nota')); }
+}
 // Página de Estado
 let estadoTimer = null;
 const SIT = { ok: ['ok', 'Funcionando'], mant: ['mant', 'En mantenimiento'], caido: ['bad', 'No funciona'] };
@@ -64,6 +81,7 @@ function go(p) {
   document.querySelectorAll('.page').forEach((s) => s.classList.toggle('on', s.id === 'p-' + p));
   document.querySelectorAll('#nav a[data-p]').forEach((a) => a.classList.toggle('on', a.dataset.p === p));
   if (estadoTimer) { clearInterval(estadoTimer); estadoTimer = null; }
+  if (p === 'updates') cargarUpdates();
   if (p === 'estado') { cargarEstado(); estadoTimer = setInterval(cargarEstado, 60000); }
   movePill();
   if (location.hash !== '#' + p) history.replaceState(null, '', '#' + p);
@@ -74,7 +92,7 @@ function go(p) {
 document.querySelectorAll('[data-p]').forEach((a) => a.addEventListener('click', () => { closeMenu(); go(a.dataset.p); }));
 document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
 const start = location.hash.slice(1);
-if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq'].includes(start)) go(start);
+if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates'].includes(start)) go(start);
 api('/api/config').then((c) => { $('dc').href = c.discord; $('dc2').href = c.discord; if (c.version) { $('ver').textContent = c.version; $('ver2').textContent = c.version; } }).catch(() => {});
 $('year').textContent = new Date().getFullYear();
 
