@@ -162,3 +162,9 @@ h2{letter-spacing:.5px}
 h3,h4,button,.btn,.nv span,nav a{font-family:"Montserrat","Gotham",sans-serif;font-weight:700}
 .sc .st{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin:4px 0 2px;color:#4ade80}
 .sc .st.mant{color:#fbbf24}.sc .st.bad{color:#ff6b78}
+
+/* Updates */
+.card.up .up-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card.up .up-top h3{font-size:19px;margin:0}
+.card.up .up-fecha{display:block;color:var(--sub);font-size:13px;margin:4px 0 8px}
+.card.up .up-desc{color:#d9dce3;font-size:15px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
