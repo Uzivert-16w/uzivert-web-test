@@ -77,4 +77,18 @@ $('e-copy').onclick = (e) => copyText($('e-ls').textContent, e.target);
 async function verif() { try { const v = await api('/api/admin/verificados'); $('vcount').textContent = v.length + ' cuenta(s) verificada(s).'; $('vpre').textContent = v.map((x) => `${x.name} (${x.id}) - ${x.fecha.slice(0, 10)}`).join('\n') || '(vacio)'; } catch {} }
 $('vlist').onclick = () => $('vpre').classList.toggle('hide');
 $('diag').onclick = async () => { const p = $('dpre'); p.classList.remove('hide'); p.textContent = 'Probando...'; try { p.textContent = JSON.stringify(await api('/api/admin/diag'), null, 2); } catch (e) { p.textContent = e.message; } };
+$('u-pub').onclick = async () => {
+  const titulo = $('u-t').value.trim(), version = $('u-v').value.trim(), desc = $('u-d').value.trim();
+  if (!titulo || !desc) { show($('u-m'), 'Faltan el título o la descripción.', false); return; }
+  const b = $('u-pub'); b.disabled = true;
+  try { await api('/api/admin/panel/update', { method: 'POST', body: { titulo, version, desc } }); ['u-t', 'u-v', 'u-d'].forEach((i) => ($(i).value = '')); show($('u-m'), 'Actualización publicada.', true); }
+  catch (e) { show($('u-m'), e.message, false); }
+  b.disabled = false;
+};
+$('u-ver').onclick = async () => {
+  const p = $('u-list'); p.classList.toggle('hide'); if (p.classList.contains('hide')) return;
+  p.textContent = 'Cargando...';
+  try { const l = await api('/api/updates'); p.textContent = l.length ? l.map((u) => `${u.titulo}${u.version ? ' (v' + String(u.version).replace(/^v/i, '') + ')' : ''}\n${u.descripcion}`).join('\n\n') : 'No hay actualizaciones.'; }
+  catch (e) { p.textContent = e.message; }
+};
 boot();
