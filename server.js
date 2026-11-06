@@ -13,6 +13,7 @@ const WEBHOOK_VERIF = env.DISCORD_WEBHOOK_VERIFICACIONES || WEBHOOK_SOPORTE;
 const LOADSTRING = env.LOADSTRING || 'loadstring(game:HttpGet("https://uzivert-api.vercel.app/loader"))()';
 const API_URL = (env.UZIVERT_API_URL || 'https://uzivert-api.onrender.com').replace(/\/$/, '');
 const WEB_SECRET = env.WEB_SECRET || '';
+const API_ADMIN_PASS = env.API_ADMIN_PASS || '';
 const COPIAR_MAX = Number(env.COPIAR_CONTENIDO_MAX) || 3000;   // hasta este largo se copia el contenido en vez del link
 const DISCORD_INVITE = env.DISCORD_INVITE || 'https://discord.gg/vHhERWcbXe';
 const ROBLOX_USERS = (env.ROBLOX_USERS_API || 'https://users.roblox.com').replace(/\/$/, '');
@@ -324,6 +325,65 @@ app.get('/api/scripts', async (req, res) => {
     for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, logo: x.logo || '', situacion: x.situacion || 'ok', libre: x.verificacion === 'no', loadstring: (verificado || x.verificacion === 'no') ? await textoCopiable(x) : null });
     res.json({ verificado, scripts: list });
   } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
+});
+
+// ---------- PANEL (usa la API de Uzivert; la clave de la API nunca llega al navegador) ----------
+async function apiAdmin(ruta, params) {
+  if (!API_ADMIN_PASS) { const e = new Error('Falta la variable API_ADMIN_PASS en el servicio de la página (es la contraseña de admin de tu API).'); e.status = 503; throw e; }
+  const u = new URL(API_URL + ruta);
+  u.searchParams.set('pass', API_ADMIN_PASS);
+  for (const [k, v] of Object.entries(params || {})) u.searchParams.set(k, String(v));
+  let r;
+  try { r = await fetch(u, { signal: AbortSignal.timeout(30000) }); } catch { const e = new Error('No se pudo conectar con la API (puede estar despertando, prueba de nuevo en un momento).'); e.status = 502; throw e; }
+  let d = null; try { d = await r.json(); } catch {}
+  if (r.status === 401) { const e = new Error('La API rechazó la clave: revisa que API_ADMIN_PASS sea la contraseña de admin de la API.'); e.status = 502; throw e; }
+  if (r.status === 404) { const e = new Error('Esa función todavía no existe en tu API (' + ruta + ').'); e.status = 501; throw e; }
+  if (!r.ok) { const e = new Error((d && d.error) || 'Error de la API (' + r.status + ').'); e.status = 502; throw e; }
+  return d;
+}
+const viaApi = (fn) => async (req, res) => { try { res.json(await fn(req)); } catch (e) { res.status(e.status || 500).json({ error: e.message || 'Error.' }); } };
+app.get('/api/admin/panel/verificados', adminOnly, viaApi(() => apiAdmin('/admin/verificados')));
+app.get('/api/admin/panel/baneados', adminOnly, viaApi(() => apiAdmin('/admin/baneados')));
+app.get('/api/admin/panel/conectados', adminOnly, viaApi(() => apiAdmin('/admin/conectados')));
+app.get('/api/admin/panel/perfiles', adminOnly, viaApi(async () => { const r = await fetch(`${API_URL}/api/perfiles`, { signal: AbortSignal.timeout(30000) }); if (!r.ok) throw Object.assign(new Error('No se pudieron leer los perfiles.'), { status: 502 }); return r.json(); }));
+app.post('/api/admin/panel/update', adminOnly, needJson, viaApi(async (req) => {
+  const b = req.body || {};
+  const titulo = clean(b.titulo, 100), desc = clean(b.desc, 1800), version = clean(b.version, 20);
+  if (!titulo || !desc) throw Object.assign(new Error('Faltan el título o la descripción.'), { status: 400 });
+  const d = await apiAdmin('/admin/crear_update', { titulo, desc, version });   // la API lo guarda y lo manda a Discord (webhook)
+  updatesCache = { t: 0, data: null };
+  return d;
+}));
+app.post('/api/admin/panel/verificar', adminOnly, needJson, viaApi(async (req) => {
+  const id = clean(req.body && req.body.discord_id, 25);
+  if (!/^\d{15,22}$/.test(id)) throw Object.assign(new Error('El ID de Discord son solo números.'), { status: 400 });
+  return apiAdmin('/admin/perfil/verificar', { discord_id: id, valor: req.body.valor ? 1 : 0 });
+}));
+app.post('/api/admin/panel/perfil', adminOnly, needJson, viaApi(async (req) => {
+  const b = req.body || {};
+  const id = clean(b.discord_id, 25), roblox = clean(b.roblox_user, 40);
+  if (!/^\d{15,22}$/.test(id)) throw Object.assign(new Error('El ID de Discord son solo números.'), { status: 400 });
+  if (!roblox) throw Object.assign(new Error('Falta el usuario de Roblox.'), { status: 400 });
+  const u = new URL(API_URL + '/api/perfil/editar');
+  const p = { discord_id: id, roblox_user: roblox, display_name: clean(b.display_name, 32), custom_avatar: clean(b.custom_avatar, 300), bio: clean(b.bio, 190), banner: clean(b.banner, 300) };
+  for (const [k, v] of Object.entries(p)) u.searchParams.set(k, v);
+  const r = await fetch(u, { signal: AbortSignal.timeout(30000) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) throw Object.assign(new Error(d.error || 'No se pudo guardar el perfil.'), { status: r.status === 403 ? 403 : 502 });
+  return d;
+}));
+
+// Updates públicos (los mismos que se publican desde el panel)
+let updatesCache = { t: 0, data: null };
+app.get('/api/updates', async (req, res) => {
+  noStore(res);
+  if (!updatesCache.data || Date.now() - updatesCache.t > 30e3) {
+    try {
+      const r = await fetch(`${API_URL}/api/updates`, { signal: AbortSignal.timeout(20000) });
+      if (r.ok) { const d = await r.json(); updatesCache = { t: Date.now(), data: (Array.isArray(d) ? d : []).slice(0, 30).map((u) => ({ titulo: clean(u.titulo, 100), version: clean(u.version, 20), descripcion: clean(u.descripcion, 1800), fecha: u.fecha || null })) }; }
+    } catch {}
+  }
+  res.json(updatesCache.data || []);
 });
 
 // ---------- ESTADO ----------
