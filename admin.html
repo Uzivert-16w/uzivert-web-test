@@ -31,6 +31,14 @@
       <div id="e-link" class="hide"><label>Loadstring</label><pre class="ls" id="e-ls"></pre><div class="row" style="margin-top:8px"><button class="ghost" id="e-copy">Copiar loadstring</button></div></div>
       <div class="row"><button id="e-save">Guardar</button><button class="ghost" id="e-cancel">Cerrar</button></div><div class="msg" id="em"></div>
     </div>
+    <div class="card"><h3>Publicar actualización</h3>
+      <p>Se publica en Discord (con el webhook de tu API) y también en la pestaña Updates de la página.</p>
+      <label for="u-t">Título</label><input id="u-t" maxlength="100" placeholder="Ej: Update v4.8">
+      <label for="u-v">Versión</label><input id="u-v" maxlength="20" placeholder="Ej: 4.8">
+      <label for="u-d">Descripción</label><textarea id="u-d" maxlength="1800" placeholder="Qué cambió..."></textarea>
+      <div class="row"><button id="u-pub">Publicar actualización</button><button class="ghost" id="u-ver">Ver últimos</button></div>
+      <div class="msg" id="u-m"></div><pre class="ls hide" id="u-list" style="margin-top:10px;max-height:260px;overflow:auto"></pre>
+    </div>
     <div class="card"><h3>Cuentas verificadas</h3><p id="vcount">...</p><div class="row"><button class="ghost" id="vlist">Ver lista</button></div><pre class="ls hide" id="vpre" style="margin-top:10px;max-height:260px;overflow:auto"></pre></div>
   <div class="card"><h3>Diagnóstico</h3><p>Prueba si el servidor llega a Roblox y a Discord.</p><div class="row"><button class="ghost" id="diag">Ejecutar diagnóstico</button></div><pre class="ls hide" id="dpre" style="margin-top:10px"></pre></div>
   </section>
