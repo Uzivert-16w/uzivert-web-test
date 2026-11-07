@@ -145,11 +145,10 @@ SCRIPTS: si te piden el script de un juego (MM2, MMV, Duelos, etc.), no escribas
 
 FORMATO: responde SIEMPRE con un JSON exacto: {"say":"lo que dices en voz alta","action":null}
 "action" puede ser una de estas:
-- {"type":"search","query":"consulta"}: para buscar en internet. Úsala cuando te pregunten por noticias, datos actuales, precios, resultados, quién es alguien, o cualquier cosa que no sepas con certeza. En ese caso pon en "say" algo corto como "Buscando eso".
 - {"type":"open","url":"https://..."}: abre CUALQUIER página web que te pidan (usa la dirección real y completa, siempre https).
 - {"type":"open","site":"youtube|google|tiktok|discord|spotify|roblox","query":"búsqueda opcional"}: atajo para esos sitios, con búsqueda dentro del sitio.
 - {"type":"go","page":"inicio|verificar|soporte|scripts|foro|updates|estado|faq|creador|creditos"}: moverte dentro de esta web.
-Si no hay nada que hacer, "action" es null. No uses emojis. Si no sabes algo, busca en internet en vez de decir que no sabes. Si el usuario pide algo peligroso o ilegal, lo rechazas con una frase corta.`;
+Si no hay nada que hacer, "action" es null. No uses emojis. IMPORTANTE: no tienes herramientas ni funciones que llamar; nunca intentes llamar herramientas. Solo respondes con ese JSON. Cuando recibas un bloque "INFORMACIÓN DE INTERNET", úsalo para responder con seguridad y resume lo importante; si no alcanza, dilo con honestidad en vez de inventar. Si el usuario pide algo peligroso o ilegal, lo rechazas con una frase corta.`;
 }
 const vxLimpiar = (t) => String(t || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 function vxUrlOk(u) {
@@ -165,38 +164,52 @@ async function vxFetch(url, opts, ms) {
   const c = new AbortController(); const t = setTimeout(() => c.abort(), ms || 8000);
   try { return await fetch(url, Object.assign({ signal: c.signal }, opts || {})); } finally { clearTimeout(t); }
 }
-// Búsqueda en internet: Tavily (si hay key) > DuckDuckGo > Wikipedia
-async function vxBuscar(q) {
-  q = clean(q, 200); const out = [];
-  if (env.TAVILY_API_KEY) {
-    try {
-      const r = await vxFetch('https://api.tavily.com/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: env.TAVILY_API_KEY, query: q, max_results: 5, include_answer: true }) }, 9000);
-      const d = await r.json();
-      if (d.answer) out.push({ title: 'Resumen', snippet: String(d.answer).slice(0, 500), url: '' });
-      for (const x of (d.results || []).slice(0, 5)) out.push({ title: clean(x.title, 120), snippet: clean(x.content, 350), url: x.url });
-      if (out.length) return out;
-    } catch (e) { console.error('tavily:', e.message); }
-  }
-  try {
-    const r = await vxFetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=es-es', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36', 'Accept-Language': 'es-ES,es;q=0.9' } }, 8000);
-    const html = await r.text();
-    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-    let m;
-    while ((m = re.exec(html)) && out.length < 5) {
-      let href = m[1]; const u = /[?&]uddg=([^&]+)/.exec(href); if (u) { try { href = decodeURIComponent(u[1]); } catch {} }
-      out.push({ title: vxLimpiar(m[2]).slice(0, 120), snippet: vxLimpiar(m[3]).slice(0, 350), url: href });
-    }
-  } catch (e) { console.error('ddg:', e.message); }
-  if (out.length) return out;
-  try {
-    const r = await vxFetch('https://es.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=' + encodeURIComponent(q) + '&gsrlimit=3&prop=extracts&exintro=1&explaintext=1&exsentences=3&format=json&utf8=1&origin=*', {}, 7000);
-    const d = await r.json();
-    for (const p of Object.values((d.query && d.query.pages) || {})) out.push({ title: p.title, snippet: clean(p.extract, 400), url: 'https://es.wikipedia.org/wiki/' + encodeURIComponent(String(p.title).replace(/ /g, '_')) });
-  } catch (e) { console.error('wiki:', e.message); }
+// Búsqueda en internet: Tavily (si hay key) o DuckDuckGo + Wikipedia en paralelo
+async function vxTavily(q) {
+  const out = [];
+  const r = await vxFetch('https://api.tavily.com/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: env.TAVILY_API_KEY, query: q, max_results: 5, include_answer: true }) }, 9000);
+  const d = await r.json();
+  if (d.answer) out.push({ title: 'Resumen', snippet: String(d.answer).slice(0, 500), url: '' });
+  for (const x of (d.results || []).slice(0, 5)) out.push({ title: clean(x.title, 120), snippet: clean(x.content, 350), url: x.url });
   return out;
+}
+async function vxDdg(q) {
+  const out = [];
+  const r = await vxFetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=es-es', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36', 'Accept-Language': 'es-ES,es;q=0.9' } }, 6000);
+  const html = await r.text();
+  const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+  let m;
+  while ((m = re.exec(html)) && out.length < 5) {
+    let href = m[1]; const u = /[?&]uddg=([^&]+)/.exec(href); if (u) { try { href = decodeURIComponent(u[1]); } catch {} }
+    out.push({ title: vxLimpiar(m[2]).slice(0, 120), snippet: vxLimpiar(m[3]).slice(0, 350), url: href });
+  }
+  return out;
+}
+async function vxWiki(q) {
+  const out = [];
+  const r = await vxFetch('https://es.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=' + encodeURIComponent(q) + '&gsrlimit=3&prop=extracts&exintro=1&explaintext=1&exsentences=3&format=json&utf8=1&origin=*', {}, 6000);
+  const d = await r.json();
+  for (const p of Object.values((d.query && d.query.pages) || {})) out.push({ title: p.title, snippet: clean(p.extract, 400), url: 'https://es.wikipedia.org/wiki/' + encodeURIComponent(String(p.title).replace(/ /g, '_')) });
+  return out;
+}
+async function vxBuscar(q) {
+  q = clean(q, 200);
+  const tareas = env.TAVILY_API_KEY ? [vxTavily(q)] : [vxDdg(q), vxWiki(q)];
+  const res = await Promise.all(tareas.map((p) => p.catch((e) => { console.error('busqueda:', e.message); return []; })));
+  return res.flat().slice(0, 7);
+}
+// ¿El mensaje pide información externa? (decidido por el servidor, el modelo no llama herramientas)
+function vxNecesitaBusqueda(t) {
+  const x = String(t).toLowerCase();
+  if (/^\s*(abre|abrir|ve a|ir a|ll[eé]vame|pon|reproduce|verifica)/.test(x)) return false;
+  return /\b(busca|buscar|búscame|buscame|investiga|googlea|qui[eé]n es|qui[eé]n fue|qu[eé] es|qu[eé] fue|noticias|cu[aá]ndo|cu[aá]nto cuesta|precio|clima|resultado|[uú]ltim[oa]s?|actual|hoy|biograf[ií]a|significa|d[oó]nde queda|capital de|cu[aá]ntos?)\b/.test(x);
+}
+function vxConsulta(t) {
+  return clean(String(t).replace(/\b(puedes|podr[ií]as|por favor|vertix|oye|hey|busca(me|r)?|investiga|googlea|en internet|en google|sobre)\b/gi, ' ').replace(/\s+/g, ' '), 200) || clean(t, 200);
 }
 // Llamada al modelo con reintentos (429/5xx), respaldo y modo JSON tolerante
 async function vxLLM(messages) {
+  messages = messages.slice();
   const modelos = [DEEPSEEK_MODEL].concat(DEEPSEEK_MODEL2 ? [DEEPSEEK_MODEL2] : []);
   let ultimo = null;
   for (const modelo of modelos) {
@@ -216,7 +229,10 @@ async function vxLLM(messages) {
         ultimo = { status: r.status, msg: JSON.stringify(d).slice(0, 200) };
         console.error('ia:', modelo, r.status, ultimo.msg);
         if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 1200 * (intento + 1))); continue; }
-        if (r.status === 400) continue;                           // p. ej. json_validate_failed: reintenta sin modo JSON
+        if (r.status === 400) {                                   // p. ej. json_validate_failed / tool_use_failed: reintenta
+          if (/tool/i.test(ultimo.msg) && !messages.__nota) { messages = messages.concat([{ role: 'user', content: 'Recuerda: no llames herramientas ni funciones. Responde únicamente con el JSON pedido.' }]); messages.__nota = true; }
+          continue;
+        }
         break;                                                    // 401/402/404...: pasa al modelo de respaldo
       } catch (e) { ultimo = { status: 0, msg: e.message }; console.error('ia:', e.message); }
     }
@@ -242,26 +258,23 @@ app.post('/api/vertix', needJson, async (req, res) => {
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .map((m) => ({ role: m.role, content: clean(m.content, 400) }));
   try {
-    const msgs = [{ role: 'system', content: vxPrompt() }, ...hist, { role: 'user', content: texto }];
-    let contenido = await vxLLM(msgs);
-    let out = vxParse(contenido);
-    let buscado = false;
-    if (out.action && out.action.type === 'search' && clean(out.action.query, 200)) {
-      const q = clean(out.action.query, 200);
-      let res1 = [];
-      try { res1 = await vxBuscar(q); } catch (e) { console.error('vertix-buscar:', e && e.stack || e); }
-      buscado = true;
-      const lista = res1.length ? res1.map((x, n) => `${n + 1}. ${x.title}: ${x.snippet}${x.url ? ' (' + x.url + ')' : ''}`).join('\n') : '(sin resultados)';
-      msgs.push({ role: 'assistant', content: contenido });
-      msgs.push({ role: 'user', content: `Resultados de internet para "${q}":\n${lista}\n\nResponde ahora al usuario usando esta información, en el JSON indicado y sin pedir otra búsqueda. Si no alcanza, dilo con honestidad.` });
-      try {
-        contenido = await vxLLM(msgs);
-        out = vxParse(contenido);
-      } catch (e) {
-        console.error('vertix-2da-llamada:', e.status, e.message);
-        const top = res1[0];
-        out = { say: top ? `Encontré esto: ${top.snippet || top.title}` : 'Busqué en internet pero no encontré nada claro sobre eso.', action: (top && top.url && vxUrlOk(top.url)) ? { type: 'open', url: top.url } : null };
-      }
+    let sistema = vxPrompt();
+    let res1 = [];
+    const buscado = vxNecesitaBusqueda(texto);
+    if (buscado) {
+      try { res1 = await vxBuscar(vxConsulta(texto)); } catch (e) { console.error('vertix-buscar:', (e && e.stack) || e); }
+      const lista = res1.length ? res1.map((x, n) => `${n + 1}. ${x.title}: ${x.snippet}${x.url ? ' (' + x.url + ')' : ''}`).join('\n') : '(la búsqueda no devolvió resultados)';
+      sistema += `\n\nINFORMACIÓN DE INTERNET para la pregunta del usuario:\n${lista}`;
+    }
+    const msgs = [{ role: 'system', content: sistema }, ...hist, { role: 'user', content: texto }];
+    let out;
+    try {
+      out = vxParse(await vxLLM(msgs));
+    } catch (e) {
+      if (!buscado || !res1.length) throw e;
+      console.error('vertix-llm-con-busqueda:', e.status, e.message);
+      const top = res1[0];
+      out = { say: `Encontré esto: ${top.snippet || top.title}`, action: top.url && vxUrlOk(top.url) ? { type: 'open', url: top.url } : null };
     }
     const say = clean(out.say, 600) || 'No te entendí, ¿puedes repetirlo?';
     let action = null;
