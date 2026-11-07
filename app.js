@@ -266,8 +266,11 @@ function vxHablar(t) {
   if (!$('vx-voz').checked || !('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES';
-    const v = speechSynthesis.getVoices().find((x) => /^es/i.test(x.lang)); if (v) u.voice = v;
+    const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.05;
+    const vs = speechSynthesis.getVoices().filter((x) => /^es/i.test(x.lang));
+    const puntos = (x) => (/natural|neural|online/i.test(x.name) ? 4 : 0) + (/google/i.test(x.name) ? 3 : 0) + (/^es-(MX|US|419|PY|AR)/i.test(x.lang) ? 1 : 0) + (x.localService ? 0 : 1);
+    vs.sort((a, b) => puntos(b) - puntos(a));
+    if (vs[0]) { u.voice = vs[0]; u.lang = vs[0].lang; }
     speechSynthesis.speak(u);
   } catch {}
 }
