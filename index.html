@@ -14,13 +14,13 @@
 <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Menú">
   <div class="dr-head"><div class="brand"><div class="orb"></div>UZIVERT HUB</div><button class="close" id="menu-close" aria-label="Cerrar menú">&times;</button></div>
   <div class="dr-list">
-    <a data-p="updates">Updates</a>
-    <a data-p="vertix">Vertix (Beta)</a>
-    <a data-p="estado">Estado del servicio</a>
-    <a data-p="faq">Preguntas frecuentes</a>
-    <a data-p="creador">Creador</a>
-    <a data-p="creditos">Créditos</a>
-    <a data-p="terminos">Términos y condiciones</a>
+    <a data-p="updates"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Updates</a>
+    <a data-p="vertix"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="8.6" cy="6" rx="2" ry="4.6" transform="rotate(-8 8.6 6)"/><ellipse cx="15.4" cy="6" rx="2" ry="4.6" transform="rotate(8 15.4 6)"/><ellipse cx="12" cy="15.6" rx="6.6" ry="5.2"/><circle cx="9.7" cy="15" r=".9" fill="currentColor" stroke="none"/><circle cx="14.3" cy="15" r=".9" fill="currentColor" stroke="none"/><path d="M11 17.3h2l-1 1.1z" fill="currentColor"/></svg>Vertix <span class="beta" style="margin-left:2px">BETA</span></a>
+    <a data-p="estado"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></svg>Estado del servicio</a>
+    <a data-p="faq"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7"/><circle cx="12" cy="17" r=".7" fill="currentColor" stroke="none"/></svg>Preguntas frecuentes</a>
+    <a data-p="creador"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4-6.5 8-6.5s7 2 8 6.5"/></svg>Creador</a>
+    <a data-p="creditos"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.2 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></svg>Créditos</a>
+    <a data-p="terminos"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 12h5M9.5 16h5"/></svg>Términos y condiciones</a>
     <a id="dc" class="dcbtn" target="_blank" rel="noopener">Discord</a>
   </div>
   <div class="dr-foot"><div>Versión de la página</div><b id="ver">v1.0</b><div style="margin-top:10px">Uzivert Hub. Todos los derechos reservados.</div></div>
@@ -155,17 +155,21 @@
   </section>
 
   <section class="page" id="p-vertix">
-    <h2>Vertix <span class="beta">BETA</span></h2><p class="lead" style="font-size:16px;margin-top:6px">Tu asistente de voz. Toca el micrófono y pídele algo, por ejemplo: "reproduce una canción de Bad Bunny", "quién es Messi" o "abre TikTok". Está en beta: puede equivocarse y lo seguimos mejorando.</p>
+    <div class="vx-top">
+      <button type="button" class="vx-back" id="vx-back" aria-label="Volver al inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span>Inicio</span></button>
+      <div class="vx-tit"><b>Vertix</b><span class="beta">BETA</span><small>v0.2.1</small></div>
+      <label class="vx-chk" title="Respuestas en voz"><input type="checkbox" id="vx-voz" checked> Voz</label>
+    </div>
     <div class="card vx">
       <div class="vx-log" id="vx-log" aria-live="polite"></div>
       <div id="vx-prev" class="vx-prev" hidden><img id="vx-prev-img" alt=""><button type="button" id="vx-prev-x" class="ghost" aria-label="Quitar foto">Quitar</button></div>
       <div class="vx-bar">
-        <button type="button" id="vx-mic" class="vx-mic" aria-label="Hablar">Hablar</button>
-        <button type="button" id="vx-foto" class="ghost" aria-label="Enviar una foto">Foto</button><input type="file" id="vx-file" accept="image/*" hidden>
-        <input id="vx-in" maxlength="300" placeholder="O escribe aquí..." autocomplete="off">
-        <button type="button" id="vx-send">Enviar</button>
+        <button type="button" id="vx-foto" class="vx-ib" aria-label="Adjuntar una foto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><input type="file" id="vx-file" accept="image/*" hidden>
+        <input id="vx-in" maxlength="300" placeholder="Escribe un mensaje..." autocomplete="off">
+        <button type="button" id="vx-mic" class="vx-ib vx-mic" aria-label="Hablar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button>
+        <button type="button" id="vx-send" class="vx-ib vx-go" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
       </div>
-      <div class="row" style="margin-top:10px"><label class="vx-chk"><input type="checkbox" id="vx-voz" checked> Respuestas en voz</label><span id="vx-info" style="color:var(--sub);font-size:13px;align-self:center"></span></div>
+      <div class="vx-foot"><span id="vx-info"></span><span>Beta: puede equivocarse</span></div>
       <div class="msg" id="vx-res"></div>
     </div>
   </section>
