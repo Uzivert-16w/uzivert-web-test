@@ -88,6 +88,7 @@ function go(p) {
   scrollTo(0, 0);
   if (p === 'scripts') loadScripts();
   if (p === 'foro') showList();
+  document.body.classList.toggle('vx-mode', p === 'vertix');
   if (p === 'vertix') vxInit();
 }
 document.querySelectorAll('[data-p]').forEach((a) => a.addEventListener('click', () => { closeMenu(); go(a.dataset.p); }));
@@ -341,9 +342,9 @@ async function vxEnviar(texto) {
 function vxInit() {
   if (vxListo) return; vxListo = true;
   api('/api/vertix/estado').then((d) => { $('vx-info').textContent = !d.activo ? 'No disponible por ahora' : d.ilimitado ? 'Sin límite de mensajes (admin)' : 'Límite: 10 mensajes por minuto'; }).catch(() => {});
-  vxMsg('a', 'Hola, soy Vertix (beta). ¿En qué te ayudo?');
+  vxMsg('a', 'Hola, soy Vertix (beta v0.2.1). Pídeme que reproduzca música, busque algo, abra una página o te ayude con código.'); $('vx-back').addEventListener('click', () => go('inicio'));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { $('vx-mic').disabled = true; $('vx-mic').textContent = 'Sin micrófono'; $('vx-res').textContent = 'Tu navegador no soporta voz. Usa Chrome, o escribe tu mensaje.'; $('vx-res').className = 'msg err'; }
+  if (!SR) { $('vx-mic').disabled = true; $('vx-mic').style.opacity = '.4'; $('vx-res').textContent = 'Tu navegador no soporta voz. Usa Chrome, o escribe tu mensaje.'; $('vx-res').className = 'msg err'; }
   else {
     vxRec = new SR(); vxRec.lang = 'es-419'; vxRec.interimResults = true; vxRec.continuous = false; vxRec.maxAlternatives = 1;
     let vxFinal = '', vxParcial = '';
@@ -354,14 +355,14 @@ function vxInit() {
       vxFinal = fin; vxParcial = par; $('vx-in').value = (fin + ' ' + par).trim();
     };
     vxRec.onend = () => {
-      vxEscuchando = false; $('vx-mic').classList.remove('on'); $('vx-mic').textContent = 'Hablar';
+      vxEscuchando = false; $('vx-mic').classList.remove('on');
       const t = (vxFinal || vxParcial).trim(); $('vx-in').value = '';
       if (t) vxEnviar(t);
     };
     vxRec.onerror = (ev) => { if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') { $('vx-res').textContent = 'Permite el micrófono en el navegador para hablar con Vertix.'; $('vx-res').className = 'msg err'; } };
     $('vx-mic').addEventListener('click', () => {
       if (vxEscuchando) { try { vxRec.stop(); } catch {} return; }
-      try { speechSynthesis.cancel(); vxRec.start(); vxEscuchando = true; $('vx-mic').classList.add('on'); $('vx-mic').textContent = 'Escuchando...'; } catch {}
+      try { speechSynthesis.cancel(); vxRec.start(); vxEscuchando = true; $('vx-mic').classList.add('on'); } catch {}
     });
   }
   $('vx-foto').addEventListener('click', () => $('vx-file').click());
