@@ -183,3 +183,4 @@ h3,h4,button,.btn,.nv span,nav a{font-family:"Montserrat","Gotham",sans-serif;fo
 .vx-chk input{width:auto;margin:0}
 .beta{font-size:11px;letter-spacing:.12em;vertical-align:middle;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--sub);margin-left:6px}
 .vx-m iframe{display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:10px;margin-top:8px;background:#000}
+.vx-m{white-space:pre-wrap}
