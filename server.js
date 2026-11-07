@@ -108,6 +108,71 @@ app.post('/api/soporte', needJson, async (req, res) => {
   } catch (e) { console.error('soporte:', e.message, e.cause ? (e.cause.code || e.cause.message) : ''); res.status(502).json({ error: 'No se pudo enviar el mensaje. Intenta de nuevo más tarde.' }); }
 });
 
+// ---------- VERTIX (asistente con voz, DeepSeek) ----------
+const DEEPSEEK_KEY = env.DEEPSEEK_API_KEY || '';
+const DEEPSEEK_URL = (env.DEEPSEEK_URL || 'https://api.deepseek.com/chat/completions');
+const DEEPSEEK_MODEL = env.DEEPSEEK_MODEL || 'deepseek-chat';
+if (!DEEPSEEK_KEY) console.warn('[aviso] DEEPSEEK_API_KEY no definida: el asistente Vertix queda deshabilitado.');
+// Límite: más de 10 mensajes en 1 minuto => bloqueo de 10 minutos. El admin no tiene límite.
+const VX_MAX = 10, VX_VENTANA = 60e3, VX_BLOQUEO = 10 * 60e3;
+const vxEstado = new Map();                                        // ip -> {hits:[], hasta}
+setInterval(() => { const n = Date.now(); for (const [k, v] of vxEstado) if (v.hasta < n && !v.hits.some((t) => n - t < VX_VENTANA)) vxEstado.delete(k); }, 60e3).unref();
+function vertixEspera(req) {                                       // ms que debe esperar (0 = puede enviar)
+  if (isAdmin(req)) return 0;
+  const k = ip(req), n = Date.now();
+  const e = vxEstado.get(k) || { hits: [], hasta: 0 };
+  if (e.hasta > n) return e.hasta - n;
+  e.hits = e.hits.filter((t) => n - t < VX_VENTANA);
+  e.hits.push(n);
+  if (e.hits.length > VX_MAX) { e.hasta = n + VX_BLOQUEO; e.hits = []; vxEstado.set(k, e); return VX_BLOQUEO; }
+  vxEstado.set(k, e);
+  return 0;
+}
+const VX_SITIOS = ['youtube', 'google', 'tiktok', 'discord', 'spotify', 'roblox'];
+const VX_PAGINAS = ['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'updates', 'estado', 'faq', 'creador', 'creditos'];
+function vxPrompt() {
+  const ahora = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion', dateStyle: 'full', timeStyle: 'short' });
+  return `Eres Vertix, el asistente de voz de Uzivert Hub (un hub de scripts para Roblox). Hablas en español, con respuestas muy cortas (máximo 2 frases), claras y amables. Fecha y hora actual en Paraguay: ${ahora}.
+Responde SIEMPRE con un JSON con esta forma exacta: {"say":"texto que se dice en voz alta","action":null}
+Si el usuario pide abrir o buscar algo, "action" puede ser:
+- {"type":"open","site":"youtube|google|tiktok|discord|spotify|roblox","query":"texto a buscar, opcional"}
+- {"type":"go","page":"inicio|verificar|soporte|scripts|foro|updates|estado|faq|creador|creditos"} para moverse dentro de esta página web.
+No inventes otras acciones ni URLs. Si no hay nada que abrir, "action" es null. No uses emojis. No des información falsa sobre Uzivert Hub: si no sabes algo, dilo.`;
+}
+app.get('/api/vertix/estado', (req, res) => { noStore(res); res.json({ activo: !!DEEPSEEK_KEY, ilimitado: isAdmin(req) }); });
+app.post('/api/vertix', needJson, async (req, res) => {
+  noStore(res);
+  if (!DEEPSEEK_KEY) return res.status(503).json({ error: 'Vertix no está disponible por ahora.' });
+  const espera = vertixEspera(req);
+  if (espera > 0) return res.status(429).json({ error: `Enviaste demasiados mensajes. Espera ${Math.ceil(espera / 60e3)} minuto(s) para volver a usar a Vertix.`, espera: Math.ceil(espera / 1000) });
+  const b = req.body || {};
+  const texto = clean(b.mensaje, 300);
+  if (!texto) return res.status(400).json({ error: 'Escribe o di algo.' });
+  const hist = (Array.isArray(b.historial) ? b.historial : []).slice(-6)
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map((m) => ({ role: m.role, content: clean(m.content, 300) }));
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const r = await fetch(DEEPSEEK_URL, {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + DEEPSEEK_KEY },
+      body: JSON.stringify({ model: DEEPSEEK_MODEL, messages: [{ role: 'system', content: vxPrompt() }, ...hist, { role: 'user', content: texto }], response_format: { type: 'json_object' }, max_tokens: 250, temperature: 0.6 }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { console.error('deepseek:', r.status, JSON.stringify(d).slice(0, 200)); return res.status(502).json({ error: 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.' }); }
+    let out = {};
+    try { out = JSON.parse(d.choices[0].message.content); } catch { out = { say: String((d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '').slice(0, 400), action: null }; }
+    const say = clean(out.say, 400) || 'No te entendí, ¿puedes repetirlo?';
+    let action = null;
+    const a = out.action;
+    if (a && a.type === 'open' && VX_SITIOS.includes(a.site)) action = { type: 'open', site: a.site, query: clean(a.query, 100) };
+    else if (a && a.type === 'go' && VX_PAGINAS.includes(a.page)) action = { type: 'go', page: a.page };
+    res.json({ say, action });
+  } catch (e) { console.error('deepseek:', e.message); res.status(502).json({ error: 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.' }); }
+  finally { clearTimeout(to); }
+});
+
 // ---------- VERIFICACION (código en la descripción de Roblox) ----------
 const pending = new Map();                                         // token -> {code,id,name,exp}
 setInterval(() => { const n = Date.now(); for (const [k, v] of pending) if (v.exp < n) pending.delete(k); }, 60e3).unref();
