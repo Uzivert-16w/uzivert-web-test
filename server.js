@@ -75,7 +75,7 @@ app.set('trust proxy', 1);
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; media-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; style-src-attr 'unsafe-inline'; script-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
 app.use(express.json({ limit: '1.5mb' }));
@@ -140,6 +140,8 @@ SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Juegos con script: Murder Mystery 2 (MM2), Murder Mystery V (MMV), Duelos Latam, Distrito de Violencia, Prison Life (la sección de armas está en mantenimiento) y un script Universal.
 - Hay un servidor de Discord oficial, un bot, una API y esta página web (uzivert-web.onrender.com).
 - La página tiene: Inicio, Verificar (se verifica la cuenta de Roblox poniendo un código en la descripción del perfil), Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Creador, Créditos y Términos.
+
+FOTOS: si el usuario envía una imagen, descríbela o respóndele sobre ella.
 
 PROGRAMACIÓN: SÍ puedes ayudar con código, incluido Lua/Luau para Roblox Studio (scripts para crear juegos, partes, GUIs, sistemas, etc.). Cuando te pidan un ejemplo o un script, escríbelo completo en "say" dentro de un bloque con tres comillas invertidas, con una explicación breve. La única excepción: si piden el script/loadstring de un juego DEL HUB (MM2, MMV, Duelos, Distrito, Prison Life) o un exploit, diles que están en la pestaña Scripts de esta página (hay que verificar la cuenta de Roblox primero) y usa la acción go a "scripts". Si piden verificarse, go a "verificar".
 
@@ -230,16 +232,17 @@ function vxConsulta(t) {
   return clean(String(t).replace(/\b(puedes|podr[ií]as|por favor|vertix|oye|hey|busca(me|r)?|investiga|googlea|en internet|en google|sobre)\b/gi, ' ').replace(/\s+/g, ' '), 200) || clean(t, 200);
 }
 // Llamada al modelo con reintentos (429/5xx), respaldo y modo JSON tolerante
-async function vxLLM(messages) {
+async function vxLLM(messages, op) {
+  op = op || {};
   messages = messages.slice();
-  const modelos = [DEEPSEEK_MODEL].concat(DEEPSEEK_MODEL2 ? [DEEPSEEK_MODEL2] : []);
+  const modelos = op.model ? [op.model] : [DEEPSEEK_MODEL].concat(DEEPSEEK_MODEL2 ? [DEEPSEEK_MODEL2] : []);
   let ultimo = null;
   for (const modelo of modelos) {
     for (let intento = 0; intento < 3; intento++) {
       const json = intento < 2;
       try {
-        const r = await vxFetch(DEEPSEEK_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + DEEPSEEK_KEY },
+        const r = await vxFetch(op.url || DEEPSEEK_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (op.key || DEEPSEEK_KEY) },
           body: JSON.stringify(Object.assign({ model: modelo, messages, max_tokens: 1800, temperature: 0.6 }, json ? { response_format: { type: 'json_object' } } : {}, /gpt-oss/i.test(modelo) ? { reasoning_effort: 'low' } : {})),
         }, 25000);
         const d = await r.json().catch(() => ({}));
@@ -274,24 +277,28 @@ app.post('/api/vertix', needJson, async (req, res) => {
   const espera = vertixEspera(req);
   if (espera > 0) return res.status(429).json({ error: `Enviaste demasiados mensajes. Espera ${Math.ceil(espera / 60e3)} minuto(s) para volver a usar a Vertix.`, espera: Math.ceil(espera / 1000) });
   const b = req.body || {};
-  const texto = clean(b.mensaje, 400);
+  let texto = clean(b.mensaje, 400);
+  const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
+  if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) return res.status(400).json({ error: 'Escribe o di algo.' });
+  if (imagen && !env.VISION_MODEL) return res.status(200).json({ say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null });
   const hist = (Array.isArray(b.historial) ? b.historial : []).slice(-10)
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .map((m) => ({ role: m.role, content: clean(m.content, 1200) }));
   try {
     let sistema = vxPrompt();
     let res1 = [];
-    const buscado = vxNecesitaBusqueda(texto);
+    const buscado = !imagen && vxNecesitaBusqueda(texto);
     if (buscado) {
       try { res1 = await vxBuscar(vxConsulta(texto)); } catch (e) { console.error('vertix-buscar:', (e && e.stack) || e); }
       const lista = res1.length ? res1.map((x, n) => `${n + 1}. ${x.title}: ${x.snippet}${x.url ? ' (' + x.url + ')' : ''}`).join('\n') : '(la búsqueda no devolvió resultados)';
       sistema += `\n\nINFORMACIÓN DE INTERNET para la pregunta del usuario:\n${lista}`;
     }
-    const msgs = [{ role: 'system', content: sistema }, ...hist, { role: 'user', content: texto }];
+    const msgs = [{ role: 'system', content: sistema }, ...hist, { role: 'user', content: imagen ? [{ type: 'text', text: texto }, { type: 'image_url', image_url: { url: imagen } }] : texto }];
+    const opVision = imagen ? { model: env.VISION_MODEL, url: env.VISION_URL || DEEPSEEK_URL, key: env.VISION_KEY || DEEPSEEK_KEY } : undefined;
     let out;
     try {
-      out = vxParse(await vxLLM(msgs));
+      out = vxParse(await vxLLM(msgs, opVision));
     } catch (e) {
       if (!buscado || !res1.length) throw e;
       console.error('vertix-llm-con-busqueda:', e.status, e.message);
