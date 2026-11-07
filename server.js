@@ -130,14 +130,102 @@ function vertixEspera(req) {                                       // ms que deb
 }
 const VX_SITIOS = ['youtube', 'google', 'tiktok', 'discord', 'spotify', 'roblox'];
 const VX_PAGINAS = ['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'updates', 'estado', 'faq', 'creador', 'creditos'];
+const DEEPSEEK_MODEL2 = env.DEEPSEEK_MODEL2 || '';                 // modelo de respaldo (opcional)
 function vxPrompt() {
   const ahora = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion', dateStyle: 'full', timeStyle: 'short' });
-  return `Eres Vertix, el asistente de voz de Uzivert Hub (un hub de scripts para Roblox). Hablas en español, con respuestas muy cortas (máximo 2 frases), claras y amables. Fecha y hora actual en Paraguay: ${ahora}.
-Responde SIEMPRE con un JSON con esta forma exacta: {"say":"texto que se dice en voz alta","action":null}
-Si el usuario pide abrir o buscar algo, "action" puede ser:
-- {"type":"open","site":"youtube|google|tiktok|discord|spotify|roblox","query":"texto a buscar, opcional"}
-- {"type":"go","page":"inicio|verificar|soporte|scripts|foro|updates|estado|faq|creador|creditos"} para moverse dentro de esta página web.
-No inventes otras acciones ni URLs. Si no hay nada que abrir, "action" es null. No uses emojis. No des información falsa sobre Uzivert Hub: si no sabes algo, dilo.`;
+  return `Eres Vertix, el asistente de voz de Uzivert Hub. Hablas en español natural, directo y amable. Respondes corto (1 a 3 frases) porque tu respuesta se lee en voz alta. Fecha y hora actual en Paraguay: ${ahora}.
+
+SOBRE UZIVERT HUB (esto lo sabes con seguridad):
+- Uzivert es el creador de Uzivert Hub, un hub de scripts para Roblox (es creador de exploits), desde Paraguay.
+- Juegos con script: Murder Mystery 2 (MM2), Murder Mystery V (MMV), Duelos Latam, Distrito de Violencia, Prison Life (la sección de armas está en mantenimiento) y un script Universal.
+- Hay un servidor de Discord oficial, un bot, una API y esta página web (uzivert-web.onrender.com).
+- La página tiene: Inicio, Verificar (se verifica la cuenta de Roblox poniendo un código en la descripción del perfil), Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Creador, Créditos y Términos.
+
+FORMATO: responde SIEMPRE con un JSON exacto: {"say":"lo que dices en voz alta","action":null}
+"action" puede ser una de estas:
+- {"type":"search","query":"consulta"}: para buscar en internet. Úsala cuando te pregunten por noticias, datos actuales, precios, resultados, quién es alguien, o cualquier cosa que no sepas con certeza. En ese caso pon en "say" algo corto como "Buscando eso".
+- {"type":"open","url":"https://..."}: abre CUALQUIER página web que te pidan (usa la dirección real y completa, siempre https).
+- {"type":"open","site":"youtube|google|tiktok|discord|spotify|roblox","query":"búsqueda opcional"}: atajo para esos sitios, con búsqueda dentro del sitio.
+- {"type":"go","page":"inicio|verificar|soporte|scripts|foro|updates|estado|faq|creador|creditos"}: moverte dentro de esta web.
+Si no hay nada que hacer, "action" es null. No uses emojis. Si no sabes algo, busca en internet en vez de decir que no sabes. Si el usuario pide algo peligroso o ilegal, lo rechazas con una frase corta.`;
+}
+const vxLimpiar = (t) => String(t || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+function vxUrlOk(u) {
+  try {
+    const x = new URL(String(u));
+    if (x.protocol !== 'https:' || x.username || x.password || String(u).length > 500) return null;
+    const h = x.hostname.toLowerCase();
+    if (h === 'localhost' || !h.includes('.') || /^(\d+\.){3}\d+$/.test(h) || h.endsWith('.local') || h.endsWith('.internal')) return null;
+    return x.toString();
+  } catch { return null; }
+}
+async function vxFetch(url, opts, ms) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms || 8000);
+  try { return await fetch(url, Object.assign({ signal: c.signal }, opts || {})); } finally { clearTimeout(t); }
+}
+// Búsqueda en internet: Tavily (si hay key) > DuckDuckGo > Wikipedia
+async function vxBuscar(q) {
+  q = clean(q, 200); const out = [];
+  if (env.TAVILY_API_KEY) {
+    try {
+      const r = await vxFetch('https://api.tavily.com/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: env.TAVILY_API_KEY, query: q, max_results: 5, include_answer: true }) }, 9000);
+      const d = await r.json();
+      if (d.answer) out.push({ title: 'Resumen', snippet: String(d.answer).slice(0, 500), url: '' });
+      for (const x of (d.results || []).slice(0, 5)) out.push({ title: clean(x.title, 120), snippet: clean(x.content, 350), url: x.url });
+      if (out.length) return out;
+    } catch (e) { console.error('tavily:', e.message); }
+  }
+  try {
+    const r = await vxFetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=es-es', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36', 'Accept-Language': 'es-ES,es;q=0.9' } }, 8000);
+    const html = await r.text();
+    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    let m;
+    while ((m = re.exec(html)) && out.length < 5) {
+      let href = m[1]; const u = /[?&]uddg=([^&]+)/.exec(href); if (u) { try { href = decodeURIComponent(u[1]); } catch {} }
+      out.push({ title: vxLimpiar(m[2]).slice(0, 120), snippet: vxLimpiar(m[3]).slice(0, 350), url: href });
+    }
+  } catch (e) { console.error('ddg:', e.message); }
+  if (out.length) return out;
+  try {
+    const r = await vxFetch('https://es.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=' + encodeURIComponent(q) + '&gsrlimit=3&prop=extracts&exintro=1&explaintext=1&exsentences=3&format=json&utf8=1&origin=*', {}, 7000);
+    const d = await r.json();
+    for (const p of Object.values((d.query && d.query.pages) || {})) out.push({ title: p.title, snippet: clean(p.extract, 400), url: 'https://es.wikipedia.org/wiki/' + encodeURIComponent(String(p.title).replace(/ /g, '_')) });
+  } catch (e) { console.error('wiki:', e.message); }
+  return out;
+}
+// Llamada al modelo con reintentos (429/5xx), respaldo y modo JSON tolerante
+async function vxLLM(messages) {
+  const modelos = [DEEPSEEK_MODEL].concat(DEEPSEEK_MODEL2 ? [DEEPSEEK_MODEL2] : []);
+  let ultimo = null;
+  for (const modelo of modelos) {
+    for (let intento = 0; intento < 3; intento++) {
+      const json = intento < 2;
+      try {
+        const r = await vxFetch(DEEPSEEK_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + DEEPSEEK_KEY },
+          body: JSON.stringify(Object.assign({ model: modelo, messages, max_tokens: 900, temperature: 0.6 }, json ? { response_format: { type: 'json_object' } } : {}, /gpt-oss/i.test(modelo) ? { reasoning_effort: 'low' } : {})),
+        }, 25000);
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) {
+          const c = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+          if (c && String(c).trim()) return String(c);
+          ultimo = { status: 200, msg: 'respuesta vacía' }; continue;
+        }
+        ultimo = { status: r.status, msg: JSON.stringify(d).slice(0, 200) };
+        console.error('ia:', modelo, r.status, ultimo.msg);
+        if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 1200 * (intento + 1))); continue; }
+        if (r.status === 400) continue;                           // p. ej. json_validate_failed: reintenta sin modo JSON
+        break;                                                    // 401/402/404...: pasa al modelo de respaldo
+      } catch (e) { ultimo = { status: 0, msg: e.message }; console.error('ia:', e.message); }
+    }
+  }
+  const err = new Error((ultimo && ultimo.msg) || 'sin respuesta'); err.status = (ultimo && ultimo.status) || 0; throw err;
+}
+function vxParse(c) {
+  let o = null;
+  try { o = JSON.parse(c); } catch { const m = /\{[\s\S]*\}/.exec(c); if (m) { try { o = JSON.parse(m[0]); } catch {} } }
+  if (!o || typeof o !== 'object') o = { say: vxLimpiar(c).slice(0, 400), action: null };
+  return o;
 }
 app.get('/api/vertix/estado', (req, res) => { noStore(res); res.json({ activo: !!DEEPSEEK_KEY, ilimitado: isAdmin(req) }); });
 app.post('/api/vertix', needJson, async (req, res) => {
@@ -146,31 +234,39 @@ app.post('/api/vertix', needJson, async (req, res) => {
   const espera = vertixEspera(req);
   if (espera > 0) return res.status(429).json({ error: `Enviaste demasiados mensajes. Espera ${Math.ceil(espera / 60e3)} minuto(s) para volver a usar a Vertix.`, espera: Math.ceil(espera / 1000) });
   const b = req.body || {};
-  const texto = clean(b.mensaje, 300);
+  const texto = clean(b.mensaje, 400);
   if (!texto) return res.status(400).json({ error: 'Escribe o di algo.' });
-  const hist = (Array.isArray(b.historial) ? b.historial : []).slice(-6)
+  const hist = (Array.isArray(b.historial) ? b.historial : []).slice(-10)
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .map((m) => ({ role: m.role, content: clean(m.content, 300) }));
-  const ctl = new AbortController();
-  const to = setTimeout(() => ctl.abort(), 25000);
+    .map((m) => ({ role: m.role, content: clean(m.content, 400) }));
   try {
-    const r = await fetch(DEEPSEEK_URL, {
-      method: 'POST', signal: ctl.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + DEEPSEEK_KEY },
-      body: JSON.stringify({ model: DEEPSEEK_MODEL, messages: [{ role: 'system', content: vxPrompt() }, ...hist, { role: 'user', content: texto }], response_format: { type: 'json_object' }, max_tokens: 800, temperature: 0.6, ...(/gpt-oss/i.test(DEEPSEEK_MODEL) ? { reasoning_effort: 'low' } : {}) }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { console.error('deepseek:', r.status, JSON.stringify(d).slice(0, 200)); return res.status(502).json({ error: 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.' }); }
-    let out = {};
-    try { out = JSON.parse(d.choices[0].message.content); } catch { out = { say: String((d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '').slice(0, 400), action: null }; }
-    const say = clean(out.say, 400) || 'No te entendí, ¿puedes repetirlo?';
+    const msgs = [{ role: 'system', content: vxPrompt() }, ...hist, { role: 'user', content: texto }];
+    let contenido = await vxLLM(msgs);
+    let out = vxParse(contenido);
+    let buscado = false;
+    if (out.action && out.action.type === 'search' && clean(out.action.query, 200)) {
+      const q = clean(out.action.query, 200);
+      const res1 = await vxBuscar(q); buscado = true;
+      const lista = res1.length ? res1.map((x, n) => `${n + 1}. ${x.title}: ${x.snippet}${x.url ? ' (' + x.url + ')' : ''}`).join('\n') : '(sin resultados)';
+      msgs.push({ role: 'assistant', content: contenido });
+      msgs.push({ role: 'user', content: `Resultados de internet para "${q}":\n${lista}\n\nResponde ahora al usuario usando esta información, en el JSON indicado y sin pedir otra búsqueda. Si no alcanza, dilo con honestidad.` });
+      contenido = await vxLLM(msgs);
+      out = vxParse(contenido);
+    }
+    const say = clean(out.say, 600) || 'No te entendí, ¿puedes repetirlo?';
     let action = null;
     const a = out.action;
-    if (a && a.type === 'open' && VX_SITIOS.includes(a.site)) action = { type: 'open', site: a.site, query: clean(a.query, 100) };
-    else if (a && a.type === 'go' && VX_PAGINAS.includes(a.page)) action = { type: 'go', page: a.page };
-    res.json({ say, action });
-  } catch (e) { console.error('deepseek:', e.message); res.status(502).json({ error: 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.' }); }
-  finally { clearTimeout(to); }
+    if (a && a.type === 'open') {
+      const u = a.url ? vxUrlOk(a.url) : null;
+      if (u) action = { type: 'open', url: u };
+      else if (VX_SITIOS.includes(a.site)) action = { type: 'open', site: a.site, query: clean(a.query, 100) };
+    } else if (a && a.type === 'go' && VX_PAGINAS.includes(a.page)) action = { type: 'go', page: a.page };
+    res.json({ say, action, buscado });
+  } catch (e) {
+    console.error('vertix:', e.status, e.message);
+    const msg = e.status === 429 ? 'Estoy recibiendo muchos pedidos. Intenta de nuevo en unos segundos.' : (e.status === 401 || e.status === 402 || e.status === 404) ? 'Vertix está en mantenimiento por ahora.' : 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.';
+    res.status(502).json({ error: msg });
+  }
 });
 
 // ---------- VERIFICACION (código en la descripción de Roblox) ----------
