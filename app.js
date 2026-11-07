@@ -283,9 +283,17 @@ async function vxEnviar(texto) {
     const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist } });
     esp.textContent = d.say;
     vxHist.push({ role: 'user', content: texto }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
-    vxHablar(d.say);
+    if (!(d.action && d.action.type === 'play')) vxHablar(d.say);
     const a = d.action;
-    if (a && a.type === 'go') { setTimeout(() => go(a.page), 900); }
+    if (a && a.type === 'play' && /^[\w-]{11}$/.test(a.videoId)) {
+      const f = document.createElement('iframe');
+      f.src = 'https://www.youtube-nocookie.com/embed/' + a.videoId + '?autoplay=1&playsinline=1&rel=0';
+      f.allow = 'autoplay; encrypted-media; picture-in-picture'; f.allowFullscreen = true; f.title = a.title || 'Reproductor';
+      esp.appendChild(f);
+      const l = document.createElement('a'); l.className = 'btn ghost'; l.href = a.url; l.target = '_blank'; l.rel = 'noopener'; l.textContent = 'Abrir en YouTube';
+      esp.appendChild(l);
+    }
+    else if (a && a.type === 'go') { setTimeout(() => go(a.page), 900); }
     else if (a && a.type === 'open' && (a.url || VX_URLS[a.site])) {
       const url = a.url || VX_URLS[a.site](a.query);
       let nom = VX_NOMBRES[a.site]; if (!nom) { try { nom = new URL(url).hostname.replace(/^www\./, ''); } catch { nom = 'enlace'; } }
@@ -299,7 +307,7 @@ async function vxEnviar(texto) {
 function vxInit() {
   if (vxListo) return; vxListo = true;
   api('/api/vertix/estado').then((d) => { $('vx-info').textContent = !d.activo ? 'No disponible por ahora' : d.ilimitado ? 'Sin límite de mensajes (admin)' : 'Límite: 10 mensajes por minuto'; }).catch(() => {});
-  vxMsg('a', 'Hola, soy Vertix. ¿En qué te ayudo?');
+  vxMsg('a', 'Hola, soy Vertix (beta). ¿En qué te ayudo?');
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { $('vx-mic').disabled = true; $('vx-mic').textContent = 'Sin micrófono'; $('vx-res').textContent = 'Tu navegador no soporta voz. Usa Chrome, o escribe tu mensaje.'; $('vx-res').className = 'msg err'; }
   else {
