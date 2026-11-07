@@ -88,11 +88,12 @@ function go(p) {
   scrollTo(0, 0);
   if (p === 'scripts') loadScripts();
   if (p === 'foro') showList();
+  if (p === 'vertix') vxInit();
 }
 document.querySelectorAll('[data-p]').forEach((a) => a.addEventListener('click', () => { closeMenu(); go(a.dataset.p); }));
 document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
 const start = location.hash.slice(1);
-if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates'].includes(start)) go(start);
+if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates', 'vertix'].includes(start)) go(start);
 api('/api/config').then((c) => { $('dc').href = c.discord; $('dc2').href = c.discord; if (c.version) { $('ver').textContent = c.version; $('ver2').textContent = c.version; } }).catch(() => {});
 $('year').textContent = new Date().getFullYear();
 
@@ -245,3 +246,68 @@ $('f-rform').addEventListener('submit', async (e) => {
 });
 movePill();
 // Entrada escalonada de las tarjetas
+
+// --- Vertix (asistente de voz) ---
+const VX_URLS = {
+  youtube: (q) => q ? 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q) : 'https://www.youtube.com',
+  google: (q) => q ? 'https://www.google.com/search?q=' + encodeURIComponent(q) : 'https://www.google.com',
+  tiktok: (q) => q ? 'https://www.tiktok.com/search?q=' + encodeURIComponent(q) : 'https://www.tiktok.com',
+  discord: () => 'https://discord.gg/vHhERWcbXe',
+  spotify: (q) => q ? 'https://open.spotify.com/search/' + encodeURIComponent(q) : 'https://open.spotify.com',
+  roblox: () => 'https://www.roblox.com',
+};
+const VX_NOMBRES = { youtube: 'YouTube', google: 'Google', tiktok: 'TikTok', discord: 'Discord', spotify: 'Spotify', roblox: 'Roblox' };
+let vxHist = [], vxListo = false, vxRec = null, vxEscuchando = false, vxOcupado = false;
+function vxMsg(quien, texto) {
+  const d = document.createElement('div'); d.className = 'vx-m ' + quien; d.textContent = texto;
+  $('vx-log').appendChild(d); $('vx-log').scrollTop = 1e9; return d;
+}
+function vxHablar(t) {
+  if (!$('vx-voz').checked || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES';
+    const v = speechSynthesis.getVoices().find((x) => /^es/i.test(x.lang)); if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  } catch {}
+}
+async function vxEnviar(texto) {
+  texto = String(texto || '').trim(); if (!texto || vxOcupado) return;
+  texto = texto.replace(/^\s*(hey\s+|oye\s+)?vertix[\s,:.]*/i, '') || texto;
+  vxOcupado = true; $('vx-res').textContent = '';
+  vxMsg('u', texto); const esp = vxMsg('a', '...');
+  try {
+    const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist } });
+    esp.textContent = d.say;
+    vxHist.push({ role: 'user', content: texto }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
+    vxHablar(d.say);
+    const a = d.action;
+    if (a && a.type === 'go') { setTimeout(() => go(a.page), 900); }
+    else if (a && a.type === 'open' && VX_URLS[a.site]) {
+      const url = VX_URLS[a.site](a.query);
+      const l = document.createElement('a'); l.className = 'btn'; l.href = url; l.target = '_blank'; l.rel = 'noopener'; l.textContent = 'Abrir ' + VX_NOMBRES[a.site];
+      esp.appendChild(document.createElement('br')); esp.appendChild(l);
+      try { window.open(url, '_blank', 'noopener'); } catch {}
+    }
+  } catch (e) { esp.textContent = e.message; if (e.status === 429) { vxHablar('Espera unos minutos para volver a usarme.'); } }
+  vxOcupado = false; $('vx-log').scrollTop = 1e9;
+}
+function vxInit() {
+  if (vxListo) return; vxListo = true;
+  api('/api/vertix/estado').then((d) => { $('vx-info').textContent = !d.activo ? 'No disponible por ahora' : d.ilimitado ? 'Sin límite de mensajes (admin)' : 'Límite: 10 mensajes por minuto'; }).catch(() => {});
+  vxMsg('a', 'Hola, soy Vertix. ¿En qué te ayudo?');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { $('vx-mic').disabled = true; $('vx-mic').textContent = 'Sin micrófono'; $('vx-res').textContent = 'Tu navegador no soporta voz. Usa Chrome, o escribe tu mensaje.'; $('vx-res').className = 'msg err'; }
+  else {
+    vxRec = new SR(); vxRec.lang = 'es-419'; vxRec.interimResults = false; vxRec.maxAlternatives = 1;
+    vxRec.onresult = (ev) => { const t = ev.results[0][0].transcript; vxEnviar(t); };
+    vxRec.onend = () => { vxEscuchando = false; $('vx-mic').classList.remove('on'); $('vx-mic').textContent = 'Hablar'; };
+    vxRec.onerror = (ev) => { if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') { $('vx-res').textContent = 'Permite el micrófono en el navegador para hablar con Vertix.'; $('vx-res').className = 'msg err'; } };
+    $('vx-mic').addEventListener('click', () => {
+      if (vxEscuchando) { try { vxRec.stop(); } catch {} return; }
+      try { speechSynthesis.cancel(); vxRec.start(); vxEscuchando = true; $('vx-mic').classList.add('on'); $('vx-mic').textContent = 'Escuchando...'; } catch {}
+    });
+  }
+  $('vx-send').addEventListener('click', () => { const t = $('vx-in').value; $('vx-in').value = ''; vxEnviar(t); });
+  $('vx-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('vx-send').click(); } });
+}
