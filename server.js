@@ -145,6 +145,8 @@ FOTOS: si el usuario envía una imagen, descríbela o respóndele sobre ella.
 
 PROGRAMACIÓN: SÍ puedes ayudar con código, incluido Lua/Luau para Roblox Studio (scripts para crear juegos, partes, GUIs, sistemas, etc.). Cuando te pidan un ejemplo o un script, escríbelo completo en "say" dentro de un bloque con tres comillas invertidas, con una explicación breve. La única excepción: si piden el script/loadstring de un juego DEL HUB (MM2, MMV, Duelos, Distrito, Prison Life) o un exploit, diles que están en la pestaña Scripts de esta página (hay que verificar la cuenta de Roblox primero) y usa la acción go a "scripts". Si piden verificarse, go a "verificar".
 
+REGLA CLAVE: TODO lo que quieras decir o escribir (historias, listas, código, explicaciones largas) va COMPLETO dentro del campo "say", con saltos de línea \n. Nunca pongas el contenido en otros campos ni escribas solo una introducción como "aquí tienes".
+
 FORMATO: responde SIEMPRE con un JSON exacto: {"say":"lo que dices en voz alta","action":null}
 "action" puede ser una de estas:
 - {"type":"play","query":"canción o video a reproducir"}: reproduce música o videos de YouTube dentro de esta página. SÍ puedes hacerlo: úsalo siempre que pidan reproducir, poner o escuchar una canción, artista o video. Si el usuario dice "una canción de él/ella", usa el artista de la conversación. Pon en "say" algo corto como "Reproduciendo ...".
@@ -267,7 +269,12 @@ async function vxLLM(messages, op) {
 function vxParse(c) {
   let o = null;
   try { o = JSON.parse(c); } catch { const m = /\{[\s\S]*\}/.exec(c); if (m) { try { o = JSON.parse(m[0]); } catch {} } }
-  if (!o || typeof o !== 'object') o = { say: vxLimpiar(c).slice(0, 400), action: null };
+  if (!o || typeof o !== 'object') o = { say: String(c).replace(/^```(?:json)?|```$/g, '').trim().slice(0, 3000), action: null };
+  // Si el modelo puso el contenido largo en otro campo (story, content, texto...), lo une al mensaje
+  const extra = Object.keys(o).filter((k) => k !== 'say' && k !== 'action' && typeof o[k] === 'string' && o[k].trim().length > 0).map((k) => o[k].trim());
+  const otros = Object.keys(o).filter((k) => k !== 'say' && k !== 'action' && o[k] && typeof o[k] === 'object').map((k) => JSON.stringify(o[k]).length > 20 ? (Array.isArray(o[k]) ? o[k].map((x) => (typeof x === 'string' ? x : Object.values(x || {}).join('\n'))).join('\n\n') : Object.values(o[k]).join('\n')) : '');
+  const resto = extra.concat(otros).filter(Boolean).join('\n\n');
+  if (resto) o.say = (String(o.say || '') + '\n\n' + resto).trim();
   return o;
 }
 app.get('/api/vertix/estado', (req, res) => { noStore(res); res.json({ activo: !!DEEPSEEK_KEY, ilimitado: isAdmin(req) }); });
