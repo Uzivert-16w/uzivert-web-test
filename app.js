@@ -283,7 +283,7 @@ async function vxEnviar(texto) {
     const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist } });
     esp.textContent = d.say;
     vxHist.push({ role: 'user', content: texto }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
-    if (!(d.action && d.action.type === 'play')) vxHablar(d.say);
+    if (!(d.action && d.action.type === 'play')) vxHablar(/```/.test(d.say) ? 'Te dejo el código en el chat.' : d.say.slice(0, 400));
     const a = d.action;
     if (a && a.type === 'play' && /^[\w-]{11}$/.test(a.videoId)) {
       const f = document.createElement('iframe');
