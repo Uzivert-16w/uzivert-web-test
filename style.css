@@ -168,3 +168,16 @@ h3,h4,button,.btn,.nv span,nav a{font-family:"Montserrat","Gotham",sans-serif;fo
 .card.up .up-top h3{font-size:19px;margin:0}
 .card.up .up-fecha{display:block;color:var(--sub);font-size:13px;margin:4px 0 8px}
 .card.up .up-desc{color:#d9dce3;font-size:15px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+
+.vx-log{min-height:160px;max-height:50vh;overflow:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.vx-m{padding:9px 12px;border-radius:12px;max-width:88%;line-height:1.4;font-size:15px;word-wrap:break-word}
+.vx-m.u{align-self:flex-end;background:#232634;border:1px solid var(--line)}
+.vx-m.a{align-self:flex-start;background:#14151c;border:1px solid var(--line)}
+.vx-m a.btn{display:inline-block;margin-top:6px}
+.vx-bar{display:flex;gap:8px;align-items:center}
+.vx-bar input{flex:1;min-width:0;margin:0}
+.vx-mic{white-space:nowrap}
+.vx-mic.on{background:#e5484d;color:#fff;animation:vxp 1s infinite}
+@keyframes vxp{50%{opacity:.6}}
+.vx-chk{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--sub);margin:0}
+.vx-chk input{width:auto;margin:0}
