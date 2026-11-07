@@ -258,12 +258,43 @@ const VX_URLS = {
 };
 const VX_NOMBRES = { youtube: 'YouTube', google: 'Google', tiktok: 'TikTok', discord: 'Discord', spotify: 'Spotify', roblox: 'Roblox' };
 let vxHist = [], vxListo = false, vxRec = null, vxEscuchando = false, vxOcupado = false;
+function vxPuntos() { const d = document.createElement('div'); d.className = 'vx-m a'; d.innerHTML = '<span class="vx-dots"><i></i><i></i><i></i></span>'; $('vx-log').appendChild(d); $('vx-log').scrollTop = 1e9; return d; }
+function vxEscribir(el, texto) {
+  return new Promise((ok) => {
+    if (texto.length > 500 || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = texto; return ok(); }
+    el.textContent = ''; el.classList.add('vx-caret');
+    let i = 0; const paso = Math.max(1, Math.round(texto.length / 90));
+    const t = setInterval(() => { i = Math.min(texto.length, i + paso); el.textContent = texto.slice(0, i); $('vx-log').scrollTop = 1e9; if (i >= texto.length) { clearInterval(t); el.classList.remove('vx-caret'); ok(); } }, 22);
+  });
+}
+function vxFoto(file) {
+  return new Promise((ok, mal) => {
+    const fr = new FileReader();
+    fr.onerror = () => mal(new Error('No se pudo leer la foto.'));
+    fr.onload = () => {
+      const im = new Image();
+      im.onerror = () => mal(new Error('Esa imagen no se pudo abrir.'));
+      im.onload = () => {
+        const M = 1024, k = Math.min(1, M / Math.max(im.width, im.height));
+        const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        ok(c.toDataURL('image/jpeg', 0.72));
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+let vxImg = '';
 function vxMsg(quien, texto) {
   const d = document.createElement('div'); d.className = 'vx-m ' + quien; d.textContent = texto;
   $('vx-log').appendChild(d); $('vx-log').scrollTop = 1e9; return d;
 }
+const VX_PRON = [[/uzivert/gi, 'Usivert'], [/\bhub\b/gi, 'Jab'], [/\bvertix\b/gi, 'Vértiks'], [/\bMM2\b/g, 'eme eme dos'], [/\bMMV\b/g, 'eme eme ve'], [/youtube/gi, 'Yutub'], [/tiktok/gi, 'Tik Tok'], [/roblox/gi, 'Róblox'], [/\bloadstring\b/gi, 'lóadstring'], [/\bbeta\b/gi, 'béta']];
+function vxPronunciar(t) { let x = String(t).replace(/https?:\/\/\S+/g, 'el enlace'); for (const [re, r] of VX_PRON) x = x.replace(re, r); return x; }
 function vxHablar(t) {
   if (!$('vx-voz').checked || !('speechSynthesis' in window)) return;
+  t = vxPronunciar(t);
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.05;
@@ -275,19 +306,22 @@ function vxHablar(t) {
   } catch {}
 }
 async function vxEnviar(texto) {
-  texto = String(texto || '').trim(); if (!texto || vxOcupado) return;
+  texto = String(texto || '').trim(); if ((!texto && !vxImg) || vxOcupado) return;
+  const imagen = vxImg; vxImg = ''; $('vx-prev').hidden = true;
   texto = texto.replace(/^\s*(hey\s+|oye\s+)?vertix[\s,:.]*/i, '') || texto;
   vxOcupado = true; $('vx-res').textContent = '';
-  vxMsg('u', texto); const esp = vxMsg('a', '...');
+  const mu = vxMsg('u', texto || 'Foto');
+  if (imagen) { const ph = document.createElement('img'); ph.className = 'vx-ph'; ph.src = imagen; ph.alt = 'Foto enviada'; mu.prepend(ph); }
+  const esp = vxPuntos();
   try {
-    const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist } });
-    esp.textContent = d.say;
-    vxHist.push({ role: 'user', content: texto }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
+    const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist, imagen: imagen || undefined } });
+    await vxEscribir(esp, d.say);
+    vxHist.push({ role: 'user', content: (imagen ? '[foto] ' : '') + (texto || 'Describe la foto') }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
     if (!(d.action && d.action.type === 'play')) vxHablar(/```/.test(d.say) ? 'Te dejo el código en el chat.' : d.say.slice(0, 400));
     const a = d.action;
     if (a && a.type === 'play' && /^[\w-]{11}$/.test(a.videoId)) {
       const f = document.createElement('iframe');
-      f.src = 'https://www.youtube-nocookie.com/embed/' + a.videoId + '?autoplay=1&playsinline=1&rel=0';
+      f.src = 'https://www.youtube.com/embed/' + a.videoId + '?autoplay=1&playsinline=1&rel=0'; f.referrerPolicy = 'strict-origin-when-cross-origin';
       f.allow = 'autoplay; encrypted-media; picture-in-picture'; f.allowFullscreen = true; f.title = a.title || 'Reproductor';
       esp.appendChild(f);
       const l = document.createElement('a'); l.className = 'btn ghost'; l.href = a.url; l.target = '_blank'; l.rel = 'noopener'; l.textContent = 'Abrir en YouTube';
@@ -330,6 +364,13 @@ function vxInit() {
       try { speechSynthesis.cancel(); vxRec.start(); vxEscuchando = true; $('vx-mic').classList.add('on'); $('vx-mic').textContent = 'Escuchando...'; } catch {}
     });
   }
+  $('vx-foto').addEventListener('click', () => $('vx-file').click());
+  $('vx-file').addEventListener('change', async () => {
+    const f = $('vx-file').files[0]; $('vx-file').value = ''; if (!f) return;
+    try { vxImg = await vxFoto(f); $('vx-prev-img').src = vxImg; $('vx-prev').hidden = false; $('vx-in').focus(); }
+    catch (e) { $('vx-res').textContent = e.message; $('vx-res').className = 'msg err'; }
+  });
+  $('vx-prev-x').addEventListener('click', () => { vxImg = ''; $('vx-prev').hidden = true; });
   $('vx-send').addEventListener('click', () => { const t = $('vx-in').value; $('vx-in').value = ''; vxEnviar(t); });
   $('vx-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('vx-send').click(); } });
 }
