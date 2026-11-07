@@ -157,7 +157,7 @@ app.post('/api/vertix', needJson, async (req, res) => {
     const r = await fetch(DEEPSEEK_URL, {
       method: 'POST', signal: ctl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + DEEPSEEK_KEY },
-      body: JSON.stringify({ model: DEEPSEEK_MODEL, messages: [{ role: 'system', content: vxPrompt() }, ...hist, { role: 'user', content: texto }], response_format: { type: 'json_object' }, max_tokens: 250, temperature: 0.6 }),
+      body: JSON.stringify({ model: DEEPSEEK_MODEL, messages: [{ role: 'system', content: vxPrompt() }, ...hist, { role: 'user', content: texto }], response_format: { type: 'json_object' }, max_tokens: 800, temperature: 0.6, ...(/gpt-oss/i.test(DEEPSEEK_MODEL) ? { reasoning_effort: 'low' } : {}) }),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { console.error('deepseek:', r.status, JSON.stringify(d).slice(0, 200)); return res.status(502).json({ error: 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.' }); }
