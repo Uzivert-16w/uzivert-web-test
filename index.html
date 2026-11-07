@@ -158,8 +158,10 @@
     <h2>Vertix <span class="beta">BETA</span></h2><p class="lead" style="font-size:16px;margin-top:6px">Tu asistente de voz. Toca el micrófono y pídele algo, por ejemplo: "reproduce una canción de Bad Bunny", "quién es Messi" o "abre TikTok". Está en beta: puede equivocarse y lo seguimos mejorando.</p>
     <div class="card vx">
       <div class="vx-log" id="vx-log" aria-live="polite"></div>
+      <div id="vx-prev" class="vx-prev" hidden><img id="vx-prev-img" alt=""><button type="button" id="vx-prev-x" class="ghost" aria-label="Quitar foto">Quitar</button></div>
       <div class="vx-bar">
         <button type="button" id="vx-mic" class="vx-mic" aria-label="Hablar">Hablar</button>
+        <button type="button" id="vx-foto" class="ghost" aria-label="Enviar una foto">Foto</button><input type="file" id="vx-file" accept="image/*" hidden>
         <input id="vx-in" maxlength="300" placeholder="O escribe aquí..." autocomplete="off">
         <button type="button" id="vx-send">Enviar</button>
       </div>
