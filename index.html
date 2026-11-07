@@ -15,6 +15,7 @@
   <div class="dr-head"><div class="brand"><div class="orb"></div>UZIVERT HUB</div><button class="close" id="menu-close" aria-label="Cerrar menú">&times;</button></div>
   <div class="dr-list">
     <a data-p="updates">Updates</a>
+    <a data-p="vertix">Vertix (asistente)</a>
     <a data-p="estado">Estado del servicio</a>
     <a data-p="faq">Preguntas frecuentes</a>
     <a data-p="creador">Creador</a>
@@ -22,7 +23,7 @@
     <a data-p="terminos">Términos y condiciones</a>
     <a id="dc" class="dcbtn" target="_blank" rel="noopener">Discord</a>
   </div>
-  <div class="dr-foot"><div>Versión de la página</div><b id="ver">v1.2</b><div style="margin-top:10px">Uzivert Hub. Todos los derechos reservados.</div></div>
+  <div class="dr-foot"><div>Versión de la página</div><b id="ver">v1.0</b><div style="margin-top:10px">Uzivert Hub. Todos los derechos reservados.</div></div>
 </aside>
 <main>
   <section class="page on" id="p-inicio">
@@ -153,6 +154,19 @@
     <div class="msg" id="v-msg"></div>
   </section>
 
+  <section class="page" id="p-vertix">
+    <h2>Vertix</h2><p class="lead" style="font-size:16px;margin-top:6px">Tu asistente de voz. Toca el micrófono y pídele algo, por ejemplo: "abre YouTube" o "busca música en YouTube".</p>
+    <div class="card vx">
+      <div class="vx-log" id="vx-log" aria-live="polite"></div>
+      <div class="vx-bar">
+        <button type="button" id="vx-mic" class="vx-mic" aria-label="Hablar">Hablar</button>
+        <input id="vx-in" maxlength="300" placeholder="O escribe aquí..." autocomplete="off">
+        <button type="button" id="vx-send">Enviar</button>
+      </div>
+      <div class="row" style="margin-top:10px"><label class="vx-chk"><input type="checkbox" id="vx-voz" checked> Respuestas en voz</label><span id="vx-info" style="color:var(--sub);font-size:13px;align-self:center"></span></div>
+      <div class="msg" id="vx-res"></div>
+    </div>
+  </section>
   <section class="page" id="p-soporte">
     <h2>Soporte</h2><p class="lead" style="font-size:16px;margin-top:6px">Cuéntanos tu problema o idea y el equipo lo recibe al instante.</p>
     <form class="card" id="s-form" autocomplete="off">
