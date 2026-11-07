@@ -248,12 +248,20 @@ app.post('/api/vertix', needJson, async (req, res) => {
     let buscado = false;
     if (out.action && out.action.type === 'search' && clean(out.action.query, 200)) {
       const q = clean(out.action.query, 200);
-      const res1 = await vxBuscar(q); buscado = true;
+      let res1 = [];
+      try { res1 = await vxBuscar(q); } catch (e) { console.error('vertix-buscar:', e && e.stack || e); }
+      buscado = true;
       const lista = res1.length ? res1.map((x, n) => `${n + 1}. ${x.title}: ${x.snippet}${x.url ? ' (' + x.url + ')' : ''}`).join('\n') : '(sin resultados)';
       msgs.push({ role: 'assistant', content: contenido });
       msgs.push({ role: 'user', content: `Resultados de internet para "${q}":\n${lista}\n\nResponde ahora al usuario usando esta información, en el JSON indicado y sin pedir otra búsqueda. Si no alcanza, dilo con honestidad.` });
-      contenido = await vxLLM(msgs);
-      out = vxParse(contenido);
+      try {
+        contenido = await vxLLM(msgs);
+        out = vxParse(contenido);
+      } catch (e) {
+        console.error('vertix-2da-llamada:', e.status, e.message);
+        const top = res1[0];
+        out = { say: top ? `Encontré esto: ${top.snippet || top.title}` : 'Busqué en internet pero no encontré nada claro sobre eso.', action: (top && top.url && vxUrlOk(top.url)) ? { type: 'open', url: top.url } : null };
+      }
     }
     const say = clean(out.say, 600) || 'No te entendí, ¿puedes repetirlo?';
     let action = null;
