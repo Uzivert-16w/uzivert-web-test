@@ -133,7 +133,7 @@ const VX_PAGINAS = ['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'update
 const DEEPSEEK_MODEL2 = env.DEEPSEEK_MODEL2 || '';                 // modelo de respaldo (opcional)
 function vxPrompt() {
   const ahora = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion', dateStyle: 'full', timeStyle: 'short' });
-  return `Eres Vertix (versión beta), el asistente de voz de Uzivert Hub. Hablas en español natural, directo y amable. Respondes corto (1 a 3 frases) porque tu respuesta se lee en voz alta. Fecha y hora actual en Paraguay: ${ahora}.
+  return `Eres Vertix (versión beta), el asistente de voz de Uzivert Hub. Hablas en español natural, directo y amable. Normalmente respondes corto (1 a 3 frases) porque tu respuesta se lee en voz alta, pero cuando te piden código o una explicación larga puedes extenderte. Fecha y hora actual en Paraguay: ${ahora}.
 
 SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Uzivert es el creador de Uzivert Hub, un hub de scripts para Roblox (es creador de exploits), desde Paraguay.
@@ -141,7 +141,7 @@ SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Hay un servidor de Discord oficial, un bot, una API y esta página web (uzivert-web.onrender.com).
 - La página tiene: Inicio, Verificar (se verifica la cuenta de Roblox poniendo un código en la descripción del perfil), Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Creador, Créditos y Términos.
 
-SCRIPTS: si te piden el script de un juego (MM2, MMV, Duelos, etc.), no escribas ni pegues código. Diles que en la pestaña Scripts de esta página está el loadstring de cada juego (hay que verificar la cuenta de Roblox primero) y usa la acción go a "scripts". Si piden verificarse, usa go a "verificar".
+PROGRAMACIÓN: SÍ puedes ayudar con código, incluido Lua/Luau para Roblox Studio (scripts para crear juegos, partes, GUIs, sistemas, etc.). Cuando te pidan un ejemplo o un script, escríbelo completo en "say" dentro de un bloque con tres comillas invertidas, con una explicación breve. La única excepción: si piden el script/loadstring de un juego DEL HUB (MM2, MMV, Duelos, Distrito, Prison Life) o un exploit, diles que están en la pestaña Scripts de esta página (hay que verificar la cuenta de Roblox primero) y usa la acción go a "scripts". Si piden verificarse, go a "verificar".
 
 FORMATO: responde SIEMPRE con un JSON exacto: {"say":"lo que dices en voz alta","action":null}
 "action" puede ser una de estas:
@@ -240,7 +240,7 @@ async function vxLLM(messages) {
       try {
         const r = await vxFetch(DEEPSEEK_URL, {
           method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + DEEPSEEK_KEY },
-          body: JSON.stringify(Object.assign({ model: modelo, messages, max_tokens: 900, temperature: 0.6 }, json ? { response_format: { type: 'json_object' } } : {}, /gpt-oss/i.test(modelo) ? { reasoning_effort: 'low' } : {})),
+          body: JSON.stringify(Object.assign({ model: modelo, messages, max_tokens: 1800, temperature: 0.6 }, json ? { response_format: { type: 'json_object' } } : {}, /gpt-oss/i.test(modelo) ? { reasoning_effort: 'low' } : {})),
         }, 25000);
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
@@ -278,7 +278,7 @@ app.post('/api/vertix', needJson, async (req, res) => {
   if (!texto) return res.status(400).json({ error: 'Escribe o di algo.' });
   const hist = (Array.isArray(b.historial) ? b.historial : []).slice(-10)
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .map((m) => ({ role: m.role, content: clean(m.content, 400) }));
+    .map((m) => ({ role: m.role, content: clean(m.content, 1200) }));
   try {
     let sistema = vxPrompt();
     let res1 = [];
@@ -298,7 +298,7 @@ app.post('/api/vertix', needJson, async (req, res) => {
       const top = res1[0];
       out = { say: `Encontré esto: ${top.snippet || top.title}`, action: top.url && vxUrlOk(top.url) ? { type: 'open', url: top.url } : null };
     }
-    const say = clean(out.say, 600) || 'No te entendí, ¿puedes repetirlo?';
+    const say = clean(out.say, 3000) || 'No te entendí, ¿puedes repetirlo?';
     let action = null;
     const a = out.action;
     if (a && a.type === 'open') {
