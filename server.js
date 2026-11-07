@@ -73,7 +73,7 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use((req, res, next) => {
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; media-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; style-src-attr 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; media-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; style-src-attr 'unsafe-inline'; script-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   next();
@@ -133,7 +133,7 @@ const VX_PAGINAS = ['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'update
 const DEEPSEEK_MODEL2 = env.DEEPSEEK_MODEL2 || '';                 // modelo de respaldo (opcional)
 function vxPrompt() {
   const ahora = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion', dateStyle: 'full', timeStyle: 'short' });
-  return `Eres Vertix, el asistente de voz de Uzivert Hub. Hablas en español natural, directo y amable. Respondes corto (1 a 3 frases) porque tu respuesta se lee en voz alta. Fecha y hora actual en Paraguay: ${ahora}.
+  return `Eres Vertix (versión beta), el asistente de voz de Uzivert Hub. Hablas en español natural, directo y amable. Respondes corto (1 a 3 frases) porque tu respuesta se lee en voz alta. Fecha y hora actual en Paraguay: ${ahora}.
 
 SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Uzivert es el creador de Uzivert Hub, un hub de scripts para Roblox (es creador de exploits), desde Paraguay.
@@ -145,6 +145,7 @@ SCRIPTS: si te piden el script de un juego (MM2, MMV, Duelos, etc.), no escribas
 
 FORMATO: responde SIEMPRE con un JSON exacto: {"say":"lo que dices en voz alta","action":null}
 "action" puede ser una de estas:
+- {"type":"play","query":"canción o video a reproducir"}: reproduce música o videos de YouTube dentro de esta página. SÍ puedes hacerlo: úsalo siempre que pidan reproducir, poner o escuchar una canción, artista o video. Si el usuario dice "una canción de él/ella", usa el artista de la conversación. Pon en "say" algo corto como "Reproduciendo ...".
 - {"type":"open","url":"https://..."}: abre CUALQUIER página web que te pidan (usa la dirección real y completa, siempre https).
 - {"type":"open","site":"youtube|google|tiktok|discord|spotify|roblox","query":"búsqueda opcional"}: atajo para esos sitios, con búsqueda dentro del sitio.
 - {"type":"go","page":"inicio|verificar|soporte|scripts|foro|updates|estado|faq|creador|creditos"}: moverte dentro de esta web.
@@ -198,10 +199,31 @@ async function vxBuscar(q) {
   const res = await Promise.all(tareas.map((p) => p.catch((e) => { console.error('busqueda:', e.message); return []; })));
   return res.flat().slice(0, 7);
 }
+// Busca un video en YouTube para reproducirlo (API oficial si hay key; si no, la página de resultados)
+async function vxYoutube(q) {
+  q = clean(q, 120); if (!q) return null;
+  if (env.YOUTUBE_API_KEY) {
+    try {
+      const r = await vxFetch('https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=1&q=' + encodeURIComponent(q) + '&key=' + encodeURIComponent(env.YOUTUBE_API_KEY), {}, 7000);
+      const d = await r.json();
+      const it = d.items && d.items[0];
+      if (it && it.id && it.id.videoId) return { id: it.id.videoId, title: vxLimpiar(it.snippet && it.snippet.title) };
+      if (d.error) console.error('youtube api:', JSON.stringify(d.error).slice(0, 160));
+    } catch (e) { console.error('youtube api:', e.message); }
+  }
+  try {
+    const r = await vxFetch('https://www.youtube.com/results?search_query=' + encodeURIComponent(q) + '&sp=EgIQAQ%253D%253D', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36', 'Accept-Language': 'es-ES,es;q=0.9', Cookie: 'CONSENT=YES+1' } }, 8000);
+    const html = await r.text();
+    const m = /"videoRenderer":\{"videoId":"([\w-]{11})"[\s\S]{0,1500}?"title":\{"runs":\[\{"text":"([^"]*)"/.exec(html);
+    if (m) return { id: m[1], title: vxLimpiar(m[2].replace(/\\u0026/g, '&').replace(/\\"/g, '"')) };
+  } catch (e) { console.error('youtube scrape:', e.message); }
+  return null;
+}
+const vxQuierePlay = (t) => /\b(reprod[uú]ce(me)?|reproducir|ponme|p[oó]n(me)?\s+(una|un|la|el|algo|m[uú]sica)|play|quiero (escuchar|o[ií]r)|escuchar|pon la canci[oó]n|canci[oó]n de)\b/i.test(String(t));
 // ¿El mensaje pide información externa? (decidido por el servidor, el modelo no llama herramientas)
 function vxNecesitaBusqueda(t) {
   const x = String(t).toLowerCase();
-  if (/^\s*(abre|abrir|ve a|ir a|ll[eé]vame|pon|reproduce|verifica)/.test(x)) return false;
+  if (/^\s*(abre|abrir|ve a|ir a|ll[eé]vame|pon|reproduce|verifica)/.test(x) || vxQuierePlay(x)) return false;
   return /\b(busca|buscar|búscame|buscame|investiga|googlea|qui[eé]n es|qui[eé]n fue|qu[eé] es|qu[eé] fue|noticias|cu[aá]ndo|cu[aá]nto cuesta|precio|clima|resultado|[uú]ltim[oa]s?|actual|hoy|biograf[ií]a|significa|d[oó]nde queda|capital de|cu[aá]ntos?)\b/.test(x);
 }
 function vxConsulta(t) {
@@ -284,7 +306,14 @@ app.post('/api/vertix', needJson, async (req, res) => {
       if (u) action = { type: 'open', url: u };
       else if (VX_SITIOS.includes(a.site)) action = { type: 'open', site: a.site, query: clean(a.query, 100) };
     } else if (a && a.type === 'go' && VX_PAGINAS.includes(a.page)) action = { type: 'go', page: a.page };
-    res.json({ say, action, buscado });
+    let say2 = say;
+    if ((a && a.type === 'play') || (!action && vxQuierePlay(texto))) {
+      const q = clean((a && a.query) || vxConsulta(texto), 120);
+      const v = await vxYoutube(q);
+      if (v) { action = { type: 'play', videoId: v.id, title: v.title, url: 'https://www.youtube.com/watch?v=' + v.id }; if (!(a && a.type === 'play')) say2 = 'Reproduciendo ' + (v.title || q); }
+      else { action = { type: 'open', site: 'youtube', query: q }; if (!(a && a.type === 'play')) say2 = 'No pude reproducirlo aquí, pero te dejo la búsqueda en YouTube.'; }
+    }
+    res.json({ say: say2, action, buscado });
   } catch (e) {
     console.error('vertix:', e.status, e.message);
     const msg = e.status === 429 ? 'Estoy recibiendo muchos pedidos. Intenta de nuevo en unos segundos.' : (e.status === 401 || e.status === 402 || e.status === 404) ? 'Vertix está en mantenimiento por ahora.' : 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.';
