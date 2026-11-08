@@ -232,3 +232,12 @@ body.vx-mode main{max-width:900px;padding:8px 10px 10px}
 .vx-opt:hover{background:rgba(255,255,255,.06)}
 
 .vx-opt.off{opacity:.5;cursor:not-allowed}
+
+.vx-modrow{display:flex;flex-wrap:wrap;gap:8px}
+.vx-vsheet{left:0;right:auto;min-width:260px;width:min(360px,calc(100vw - 32px))}
+.vx-vt{font-weight:700;padding:8px 12px 4px}
+.vx-vl{max-height:38vh;overflow:auto}
+.vx-sl{display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:13px}
+.vx-sl span{width:74px;color:var(--sub)}.vx-sl input{flex:1}
+
+.vx-cnt:empty{display:none}
