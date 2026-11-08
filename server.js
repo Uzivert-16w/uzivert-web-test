@@ -198,12 +198,19 @@ function vxPrompt() {
   return `Eres Vertix (versión beta), el asistente de voz de Uzivert Hub. Hablas en español natural, directo y amable. Normalmente respondes corto (1 a 3 frases) porque tu respuesta se lee en voz alta, pero cuando te piden código o una explicación larga puedes extenderte. Fecha y hora actual en Paraguay: ${ahora}.
 
 SOBRE UZIVERT HUB (esto lo sabes con seguridad):
-- Uzivert es el creador de Uzivert Hub, un hub de scripts para Roblox (es creador de exploits), desde Paraguay.
-- Juegos con script: Murder Mystery 2 (MM2), Murder Mystery V (MMV), Duelos Latam, Distrito de Violencia, Prison Life (la sección de armas está en mantenimiento) y un script Universal.
-- Hay un servidor de Discord oficial, un bot, una API y esta página web (uzivert-web.onrender.com).
-- La página tiene: Inicio, Verificar (se verifica la cuenta de Roblox poniendo un código en la descripción del perfil), Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Creador, Créditos y Términos.
+- Uzivert es el creador de Uzivert Hub, un hub de scripts para Roblox, desde Paraguay. El proyecto lleva más o menos 1 mes en desarrollo: todavía es pequeño y le falta mucho por mejorar.
+- Hay DOS tipos de scripts:
+  1) El HUB GRANDE: trae 5 juegos en uno y necesita verificación por seguridad. Sus juegos son MM2 (Murder Mystery 2, el principal), MMV (Murder Mystery V), Duelos Latam, Distrito de Violencia y Prison Life (en Prison Life la sección de armas está en mantenimiento).
+  2) Los hubs APARTE, que NO necesitan verificación: Duelos Murderer vs Sheriffs y el script Universal.
+- Para qué sirven: ayudan a jugar, tanto a jugadores nuevos como antiguos. No son para abusar. Ningún script está garantizado: se intenta que todos funcionen siempre, pero a veces fallan o necesitan actualización. Nunca prometas que funcionan siempre, ni digas que son seguros o indetectables.
+- Hay un servidor de Discord oficial, un bot (Vertix también vive ahí), una API y esta página web (uzivert-web.onrender.com).
+- La página tiene: Inicio, Verificar, Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Donaciones (próximamente), Creador, Créditos y Términos.
 
-SCRIPTS: nunca inventes loadstrings ni enlaces de scripts. Los scripts de Uzivert Hub los entrega el sistema solo para Duelos y Universal; el loader del hub completo (MM2, MMV, Prison Life, Distrito) exige verificar la cuenta en la página (sección Verificar) y tú no lo entregas.
+VERIFICACIÓN: se hace en la sección Verificar de la página: se verifica la cuenta de Roblox poniendo un código en la descripción del perfil. Si alguien no sabe cómo, explícaselo simple y con calma, y usa action {"type":"go","page":"verificar"}. No inventes pasos que no conozcas.
+
+SOPORTE: si alguien dice que un script no funciona, pregúntale qué juego es y qué pasa (qué error o qué no carga). Ayuda con lo que sepas. Si no se resuelve o no sabes la respuesta, no inventes: mándalo a la sección Soporte (action go soporte) o al Discord, y menciona que la página Estado muestra si hay problemas del servicio.
+
+SCRIPTS: nunca inventes loadstrings ni enlaces de scripts. El sistema entrega por su cuenta SOLO el loader de Duelos (Murderer vs Sheriffs) y el Universal. El loader del hub grande exige verificar la cuenta en la página (sección Verificar) y tú no lo entregas.
 
 FOTOS: si el usuario envía una imagen, descríbela o respóndele sobre ella.
 
@@ -358,10 +365,11 @@ function vxScripts(t, dc) {                                            // devuel
   const otro = /\b(mm2|mmv|murder|prison|distrito|violencia|hub completo|5 juegos|cinco juegos|todos)\b/.test(q);
   const verbo = /\b(dame|dar|dan|da|pasa|pasame|pasar|mand[ae]|manda|quiero|necesito|tienes|tienen|donde|como consigo|como obtengo|link|enlace|cual)\b/.test(q);
   if (!pide || !(duelos || uni || otro || verbo)) return null;
-  if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos Latam:\n' + L(VX_LOADERS.duelos) + '\nUniversal:\n' + L(VX_LOADERS.universal), action: null };
-  if (duelos && !otro) return { say: 'Aquí tienes el loader de Duelos Latam. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.duelos), action: null };
+  if (/\blatam\b/.test(q)) return { say: 'Duelos Latam viene en el hub grande, que necesita verificación por seguridad. Verifica tu cuenta de Roblox en la sección Verificar de la página. Si lo que quieres es el script de Duelos Murderer vs Sheriffs, ese sí te lo doy: pídeme "script de duelos".', action: { type: 'go', page: 'verificar' } };
+  if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos (Murderer vs Sheriffs):\n' + L(VX_LOADERS.duelos) + '\nUniversal:\n' + L(VX_LOADERS.universal), action: null };
+  if (duelos && !otro) return { say: 'Aquí tienes el loader de Duelos (Murderer vs Sheriffs). Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.duelos), action: null };
   if (uni && !otro) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.universal), action: null };
-  return { say: 'Yo solo puedo darte los loaders de Duelos Latam y del Universal. Pídeme uno diciendo, por ejemplo, "script de duelos" o "script universal". Los demás juegos (MM2, MMV, Prison Life y Distrito) van en el hub completo, que se consigue verificando tu cuenta en la sección Verificar de la página.', action: { type: 'go', page: 'verificar' } };
+  return { say: 'Yo solo puedo darte aquí los loaders de Duelos (Murderer vs Sheriffs) y del Universal, que no necesitan verificación. Pídeme uno diciendo, por ejemplo, "script de duelos" o "script universal". Los demás juegos (MM2, MMV, Duelos Latam, Distrito de Violencia y Prison Life) vienen en el hub grande, que se consigue verificando tu cuenta en la sección Verificar de la página.', action: { type: 'go', page: 'verificar' } };
 }
 
 // Modelos pequeños a veces prometen el código ("aquí tienes el script") y no lo escriben. Se detecta y se reintenta.
