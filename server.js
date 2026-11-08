@@ -949,14 +949,20 @@ app.get('/tutorial.mp4', (req, res) => {
   require('fs').createReadStream(f).pipe(res);
 });
 
+app.get('/favicon.ico', (req, res) => {                              // los navegadores lo piden solos
+  const f = [path.join(__dirname, 'public', 'logo.png'), path.join(__dirname, 'logo.png')].find((x) => require('fs').existsSync(x));
+  if (!f) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/png'); res.setHeader('Cache-Control', 'public, max-age=86400');
+  require('fs').createReadStream(f).pipe(res);
+});
 // Archivos de la página: carpeta public/, o (si subiste todo suelto en la raiz) solo estos archivos permitidos.
 const fs = require('fs');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
   app.use(express.static(PUBLIC_DIR));
 } else {
-  const PAGINA = new Set(['index.html', 'admin.html', 'style.css', 'app.js', 'admin.js', 'common.js']);
-  const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8' };
+  const PAGINA = new Set(['index.html', 'admin.html', 'style.css', 'app.js', 'admin.js', 'common.js', 'logo.png']);
+  const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.png': 'image/png' };
   console.log('[aviso] No hay carpeta public/: sirviendo los archivos de la página desde la raiz.');
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
@@ -964,7 +970,7 @@ if (fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
     if (n === 'index') n = 'index.html';
     if (!PAGINA.has(n) || !fs.existsSync(path.join(__dirname, n))) return next();
     res.setHeader('Content-Type', MIME[path.extname(n)]);
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', n === 'logo.png' ? 'public, max-age=86400' : 'no-cache');
     fs.createReadStream(path.join(__dirname, n)).pipe(res);
   });
 }
