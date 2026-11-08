@@ -338,9 +338,27 @@ async function vxLLM(messages, op) {
   }
   const err = new Error((ultimo && ultimo.msg) || 'sin respuesta'); err.status = (ultimo && ultimo.status) || 0; throw err;
 }
+// Los modelos pequeños a veces rompen el JSON (p. ej. {"say":"texto. action":{...}}). Se rescata el texto y la acción.
+function vxReparar(c) {
+  const t = String(c).replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
+  const m = /^\s*\{?\s*"?say"?\s*:\s*"/.exec(t);
+  if (!m) return null;
+  let cuerpo = t.slice(m[0].length), action = null, fin = cuerpo.length, ult = null;
+  const re = /["\s,]*"?action"?\s*:\s*(?=null|\{)/g; let x;
+  while ((x = re.exec(cuerpo))) ult = x;
+  if (ult) {
+    fin = ult.index;
+    const resto = cuerpo.slice(ult.index + ult[0].length);
+    if (!/^null/.test(resto)) { let d = 0, e = -1; for (let i = 0; i < resto.length; i++) { if (resto[i] === '{') d++; else if (resto[i] === '}') { d--; if (d === 0) { e = i; break; } } } if (e > 0) { try { action = JSON.parse(resto.slice(0, e + 1)); } catch {} } }
+  }
+  let say = cuerpo.slice(0, fin).replace(/["\s,}]+$/, '');
+  say = say.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').trim();
+  return say ? { say: say.slice(0, 4000), action } : null;
+}
 function vxParse(c) {
   let o = null;
   try { o = JSON.parse(c); } catch { const m = /\{[\s\S]*\}/.exec(c); if (m) { try { o = JSON.parse(m[0]); } catch {} } }
+  if (!o || typeof o !== 'object') o = vxReparar(c);
   if (!o || typeof o !== 'object') o = { say: String(c).replace(/^```(?:json)?|```$/g, '').trim().slice(0, 3000), action: null };
   // Si el modelo puso el contenido largo en otro campo (story, content, texto...), lo une al mensaje
   const extra = Object.keys(o).filter((k) => k !== 'say' && k !== 'action' && typeof o[k] === 'string' && o[k].trim().length > 0).map((k) => o[k].trim());
@@ -350,6 +368,7 @@ function vxParse(c) {
   return o;
 }
 vxModelosInit();
+app.__vxParse = vxParse;
 app.get('/api/vertix/estado', async (req, res) => { noStore(res); await vxCargada; res.json(Object.assign({ activo: !!DEEPSEEK_KEY, modelos: VX_MODELOS.map((m) => ({ id: m.id, nombre: m.nombre, desc: m.mant ? 'En mantenimiento' : m.desc, mant: m.mant, bloqueado: m.mant && !isAdmin(req) })) }, vxCuotaInfo(req, res))); });
 
 // Loaders que Vertix puede entregar (solo Duelos y Universal). El del hub completo exige verificación y NO se entrega.
