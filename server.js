@@ -206,7 +206,7 @@ SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Hay un servidor de Discord oficial, un bot (Vertix también vive ahí), una API y esta página web (uzivert-web.onrender.com).
 - La página tiene: Inicio, Verificar, Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Donaciones (próximamente), Creador, Créditos y Términos.
 
-VERIFICACIÓN: se hace en la sección Verificar de la página: se verifica la cuenta de Roblox poniendo un código en la descripción del perfil. Si alguien no sabe cómo, explícaselo simple y con calma, y usa action {"type":"go","page":"verificar"}. No inventes pasos que no conozcas.
+VERIFICACIÓN (reglas fijas): nunca pidas ni aceptes contraseña, PIN, correo ni cookies de nadie; solo el usuario de Roblox. Si alguien no quiere poner el código en su perfil, dile con amabilidad que sin ese paso no se puede verificar. Se hace en la sección Verificar de la página: se verifica la cuenta de Roblox poniendo un código en la descripción del perfil. Si alguien no sabe cómo, explícaselo simple y con calma, y usa action {"type":"go","page":"verificar"}. No inventes pasos que no conozcas.
 
 SOPORTE: si alguien dice que un script no funciona, pregúntale qué juego es y qué pasa (qué error o qué no carga). Ayuda con lo que sepas. Si no se resuelve o no sabes la respuesta, no inventes: mándalo a la sección Soporte (action go soporte) o al Discord, y menciona que la página Estado muestra si hay problemas del servicio.
 
@@ -371,6 +371,23 @@ vxModelosInit();
 app.__vxParse = vxParse;
 app.get('/api/vertix/estado', async (req, res) => { noStore(res); await vxCargada; res.json(Object.assign({ activo: !!DEEPSEEK_KEY, modelos: VX_MODELOS.map((m) => ({ id: m.id, nombre: m.nombre, desc: m.mant ? 'En mantenimiento' : m.desc, mant: m.mant, bloqueado: m.mant && !isAdmin(req) })) }, vxCuotaInfo(req, res))); });
 
+
+// Guía de verificación (respuesta fija, sin IA: más confiable y no gasta tokens).
+function vxVerif(t, dc, ctx) {
+  const nz = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const q = nz(t), enVerif = /verific|codigo de 5 palabras/.test(nz(ctx));      // ¿se venía hablando de verificar?
+
+  const sinPaso = /\b(no quiero|no voy a|no pienso|no puedo|sin poner|sin el codigo|prefiero no|no deseo)\b.{0,50}\b(codigo|perfil|descripcion|poner|ponerlo|pegar)\b|\b(sin|evitar).{0,25}\b(codigo|perfil|descripcion)\b/.test(q);
+  const datos = /\b(contrasena|password|clave|pin|correo|email|mail|cookie|datos)\b/.test(q);
+  if (!/\bverific/.test(q) && !(enVerif && (sinPaso || datos))) return null;
+  const NADA = 'No necesitamos tu contraseña, tu PIN, tu correo ni ningún otro dato de tu cuenta. Solo tu nombre de usuario de Roblox.';
+  if (sinPaso) return { say: 'Entiendo, pero sin ese paso no se puede verificar tu cuenta. Poner el código en la descripción de tu perfil es la única forma de comprobar que la cuenta es tuya. ' + NADA + ' Si cambias de opinión, solo dime "quiero verificarme".', action: null };
+  if (datos && !/\b(como|quiero|ayuda|ayudame|paso)\b/.test(q)) return { say: NADA + ' La verificación solo pide poner un código en la descripción de tu perfil de Roblox. Si quieres empezar, dime "quiero verificarme".', action: null };
+  const pasos = 'Para verificarte solo necesitas tu usuario de Roblox. ' + NADA + '\n1. Escribe tu usuario.\n2. Te doy un código de 5 palabras.\n3. Pégalo en la descripción de tu perfil de Roblox y guarda.\n4. Toca verificar. El código vale 15 minutos.';
+  if (dc) return { say: pasos + '\nLa verificación se hace en la página: https://uzivert-web.onrender.com (sección Verificar).', action: null };
+  return { say: pasos, action: { type: 'verify' } };
+}
+
 // Loaders que Vertix puede entregar (solo Duelos y Universal). El del hub completo exige verificación y NO se entrega.
 const VX_LOADERS = {
   duelos: env.VX_LOADER_DUELOS || 'loadstring(game:HttpGet("https://duelos-api.vercel.app/loader"))()',
@@ -405,7 +422,7 @@ const vertixHandler = async (req, res) => {
   const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
-  if (!imagen) { const sc = vxScripts(texto, !!req._vxKeys); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
+  if (!imagen) { const sc = vxScripts(texto, !!req._vxKeys) || vxVerif(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
   if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
   let fotoGastada = false;
   if (imagen) {
