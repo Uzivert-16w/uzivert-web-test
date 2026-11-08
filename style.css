@@ -230,3 +230,5 @@ body.vx-mode main{max-width:900px;padding:8px 10px 10px}
 .vx-opt small{color:var(--sub);font-size:12px}
 .vx-opt.on{background:rgba(255,255,255,.08)}
 .vx-opt:hover{background:rgba(255,255,255,.06)}
+
+.vx-opt.off{opacity:.5;cursor:not-allowed}
