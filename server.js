@@ -343,16 +343,17 @@ const VX_LOADERS = {
   duelos: env.VX_LOADER_DUELOS || 'loadstring(game:HttpGet("https://duelos-api.vercel.app/loader"))()',
   universal: env.VX_LOADER_UNIVERSAL || 'loadstring(game:HttpGet("https://uzivert-universal-api.vercel.app/loader"))()',
 };
-function vxScripts(t) {                                            // devuelve {say, action} si piden un script/loader, o null
+function vxScripts(t, dc) {                                            // devuelve {say, action} si piden un script/loader, o null
   const q = String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const L = (x) => '`' + x + '`';                                  // siempre entre comillas invertidas (código en línea)
   const pide = /\b(script|scripts|loader|loadstring|cargador)\b/.test(q);
   const duelos = /\b(duelos?|duels?|latam)\b/.test(q), uni = /\buniversal\b/.test(q);
   const otro = /\b(mm2|mmv|murder|prison|distrito|violencia|hub completo|5 juegos|cinco juegos|todos)\b/.test(q);
   const verbo = /\b(dame|dar|dan|da|pasa|pasame|pasar|mand[ae]|manda|quiero|necesito|tienes|tienen|donde|como consigo|como obtengo|link|enlace|cual)\b/.test(q);
   if (!pide || !(duelos || uni || otro || verbo)) return null;
-  if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos Latam:\n```lua\n' + VX_LOADERS.duelos + '\n```\nUniversal:\n```lua\n' + VX_LOADERS.universal + '\n```', action: null };
-  if (duelos && !otro) return { say: 'Aquí tienes el loader de Duelos Latam. Cópialo y pégalo en tu ejecutor dentro del juego:\n```lua\n' + VX_LOADERS.duelos + '\n```', action: null };
-  if (uni && !otro) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n```lua\n' + VX_LOADERS.universal + '\n```', action: null };
+  if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos Latam:\n' + L(VX_LOADERS.duelos) + '\nUniversal:\n' + L(VX_LOADERS.universal), action: null };
+  if (duelos && !otro) return { say: 'Aquí tienes el loader de Duelos Latam. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.duelos), action: null };
+  if (uni && !otro) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.universal), action: null };
   return { say: 'Yo solo puedo darte los loaders de Duelos Latam y del Universal. Pídeme uno diciendo, por ejemplo, "script de duelos" o "script universal". Los demás juegos (MM2, MMV, Prison Life y Distrito) van en el hub completo, que se consigue verificando tu cuenta en la sección Verificar de la página.', action: { type: 'go', page: 'verificar' } };
 }
 const vertixHandler = async (req, res) => {
@@ -366,7 +367,7 @@ const vertixHandler = async (req, res) => {
   const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
-  if (!imagen) { const sc = vxScripts(texto); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
+  if (!imagen) { const sc = vxScripts(texto, !!req._vxKeys); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
   if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
   let fotoGastada = false;
   if (imagen) {
