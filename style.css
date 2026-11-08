@@ -241,3 +241,8 @@ body.vx-mode main{max-width:900px;padding:8px 10px 10px}
 .vx-sl span{width:74px;color:var(--sub)}.vx-sl input{flex:1}
 
 .vx-cnt:empty{display:none}
+
+.vx-verif{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-width:340px}
+.vx-verif input{padding:10px 12px;border-radius:12px;border:1px solid var(--line,#2a2a3a);background:transparent;color:inherit;font-size:15px}
+.vx-code{display:block;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.08);font-size:16px;font-weight:700;word-break:break-word;user-select:all}
+.vx-vinfo p{margin:0 0 8px;font-size:14px}
