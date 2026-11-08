@@ -359,10 +359,10 @@ function vxEstadoGet() {
     $('vx-cnt').textContent = d.ilimitado ? 'Ilimitado' : d.restantes + '/' + vxMax; $('vx-cnt').classList.toggle('low', !d.ilimitado && d.restantes <= 5);
     $('vx-info').textContent = !d.activo ? 'No disponible por ahora' : d.ilimitado ? 'Sin límite de mensajes (admin)' : 'Cada mensaje gasta 1 de ' + vxMax;
     const ms = d.modelos || [];
-    if (!ms.find((m) => m.id === vxModelo)) vxModelo = ms[0] ? ms[0].id : '';
+    if (!ms.find((m) => m.id === vxModelo && !m.bloqueado)) { const f = ms.find((m) => !m.bloqueado); vxModelo = f ? f.id : ''; }
     const sh = $('vx-sheet'); sh.textContent = '';
     ms.forEach((m) => {
-      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'option'); b.className = 'vx-opt' + (m.id === vxModelo ? ' on' : '');
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'option'); b.className = 'vx-opt' + (m.id === vxModelo ? ' on' : '') + (m.bloqueado ? ' off' : ''); if (m.bloqueado) b.disabled = true;
       const n = document.createElement('b'); n.textContent = m.nombre; const s = document.createElement('small'); s.textContent = m.desc || '';
       b.append(n, s);
       b.addEventListener('click', () => { vxModelo = m.id; try { localStorage.setItem('vx_modelo', m.id); } catch {} sh.hidden = true; $('vx-mod').setAttribute('aria-expanded', 'false'); vxEstadoGet(); });
