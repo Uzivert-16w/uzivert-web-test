@@ -272,7 +272,7 @@ async function vxLLM(messages, op) {
         const r = await vxFetch(op.url || murl || DEEPSEEK_URL, {
           method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (op.key || mkey || DEEPSEEK_KEY) },
           body: JSON.stringify(Object.assign({ model: modelo, messages, max_tokens: 1800, temperature: 0.6 }, json ? { response_format: { type: 'json_object' } } : {}, /gpt-oss|gemini/i.test(modelo) ? { reasoning_effort: 'low' } : {})),
-        }, 45000);
+        }, 22000);
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
           const c = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
@@ -287,7 +287,7 @@ async function vxLLM(messages, op) {
           continue;
         }
         break;                                                    // 401/402/404...: pasa al modelo de respaldo
-      } catch (e) { ultimo = { status: 0, msg: e.message }; console.error('ia:', e.message); }
+      } catch (e) { ultimo = { status: 0, msg: e.message }; console.error('ia:', modelo, e.message); break; }   // timeout/red: pasa ya al siguiente modelo
     }
   }
   const err = new Error((ultimo && ultimo.msg) || 'sin respuesta'); err.status = (ultimo && ultimo.status) || 0; throw err;
