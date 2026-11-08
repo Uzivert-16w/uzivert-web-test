@@ -137,7 +137,7 @@ function vxId(req, res) {                                          // id anónim
   return (req._vxid = id);
 }
 function vxCuotaGet(req, res) {
-  const n = Date.now(), ks = ['c:' + vxId(req, res), 'i:' + vxHash(ip(req))];
+  const n = Date.now(), ks = req._vxKeys || ['c:' + vxId(req, res), 'i:' + vxHash(ip(req))];
   const es = ks.map((k) => { let e = vxEstado.get(k); if (e && e.hasta && e.hasta <= n) { vxEstado.delete(k); e = null; } return e; }).filter(Boolean);
   const e = es.length ? es.reduce((a, c) => ({ left: Math.min(a.left, c.left), inicio: Math.min(a.inicio || n, c.inicio || n), hasta: Math.max(a.hasta, c.hasta), ult: Math.max(a.ult || 0, c.ult || 0), imgs: (a.imgs || []).length >= (c.imgs || []).length ? (a.imgs || []) : (c.imgs || []) }))
     : { left: VX_MAX, inicio: 0, hasta: 0, ult: n, imgs: [] };
@@ -335,7 +335,7 @@ function vxParse(c) {
 }
 vxModelosInit();
 app.get('/api/vertix/estado', async (req, res) => { noStore(res); await vxCargada; res.json(Object.assign({ activo: !!DEEPSEEK_KEY, modelos: VX_MODELOS.map((m) => ({ id: m.id, nombre: m.nombre, desc: m.mant ? 'En mantenimiento' : m.desc, mant: m.mant, bloqueado: m.mant && !isAdmin(req) })) }, vxCuotaInfo(req, res))); });
-app.post('/api/vertix', needJson, async (req, res) => {
+const vertixHandler = async (req, res) => {
   noStore(res);
   if (!DEEPSEEK_KEY) return res.status(503).json({ error: 'Vertix no está disponible por ahora.' });
   await vxCargada;
@@ -401,7 +401,8 @@ app.post('/api/vertix', needJson, async (req, res) => {
     vxDevolver(req); if (fotoGastada) vxFotoDevolver(req);
     res.status(502).json({ error: msg, restantes: vxCuotaInfo(req).restantes });
   }
-});
+};
+app.post('/api/vertix', needJson, vertixHandler);
 
 // ---------- VERIFICACION (código en la descripción de Roblox) ----------
 const pending = new Map();                                         // token -> {code,id,name,exp}
@@ -928,4 +929,97 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'No encontrado' }));
 app.use((err, req, res, next) => { if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Demasiado grande' }); if (err instanceof SyntaxError) return res.status(400).json({ error: 'JSON inválido' }); console.error(err); res.status(500).json({ error: 'Error interno' }); });
 
 module.exports = app;
-if (require.main === module) app.listen(PORT, () => console.log(`${SITE_NAME} web en puerto ${PORT}`));
+app.__dc = { dcMensaje, dcTextoDe };
+
+// ---------- BOT DE DISCORD "Vertix" (opcional): escribe "Vertix ..." en un canal y responde con la misma IA.
+// Requiere la variable DISCORD_BOT_TOKEN y activar "Message Content Intent" en discord.com/developers.
+const DC_TOKEN = env.DISCORD_BOT_TOKEN || '';
+const DC_CANALES = (env.VERTIX_CANALES || '').split(',').map((x) => x.trim()).filter(Boolean);   // opcional: solo en estos canales
+const DC_SITIOS = { youtube: (q) => q ? 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q) : 'https://www.youtube.com', google: (q) => q ? 'https://www.google.com/search?q=' + encodeURIComponent(q) : 'https://www.google.com', tiktok: (q) => q ? 'https://www.tiktok.com/search?q=' + encodeURIComponent(q) : 'https://www.tiktok.com', spotify: (q) => q ? 'https://open.spotify.com/search/' + encodeURIComponent(q) : 'https://open.spotify.com', discord: () => DISCORD_INVITE, roblox: () => 'https://www.roblox.com' };
+const dcHist = new Map();                                          // userId -> [{role,content}]
+async function dcApi(metodo, ruta, cuerpo) {
+  const r = await fetch('https://discord.com/api/v10' + ruta, { method: metodo, headers: { Authorization: 'Bot ' + DC_TOKEN, 'Content-Type': 'application/json' }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+  if (!r.ok) throw new Error('discord ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 150));
+  return r.status === 204 ? null : r.json().catch(() => null);
+}
+function dcTextoDe(msg, botId) {                                   // devuelve el texto tras "Vertix" o la mención, o null si no le hablan
+  const c = String(msg.content || '');
+  const mencion = new RegExp('^\\s*<@!?' + botId + '>[\\s,:.!?-]*', 'i').exec(c);
+  if (mencion) return c.slice(mencion[0].length).trim();
+  const m = /^\s*(?:hey\s+|oye\s+|ey\s+)?vertix\b[\s,:.!?¿¡-]*/i.exec(c);
+  return m ? c.slice(m[0].length).trim() : null;
+}
+async function dcResponder(msg, texto) {
+  const uid = String(msg.author.id);
+  let imagen = '';
+  const adj = (msg.attachments || []).find((a) => /^image\/(png|jpe?g|webp)/i.test(a.content_type || ''));
+  if (adj) {
+    if (adj.size > 700000) return 'Esa foto es muy pesada. Envíala más chica (menos de 700 KB).';
+    try {
+      const r = await fetch(adj.url); const buf = Buffer.from(await r.arrayBuffer());
+      const tipo = /png/i.test(adj.content_type) ? 'png' : /webp/i.test(adj.content_type) ? 'webp' : 'jpeg';
+      imagen = `data:image/${tipo};base64,` + buf.toString('base64');
+    } catch { return 'No pude descargar la foto.'; }
+  }
+  const hist = dcHist.get(uid) || [];
+  const req = { headers: {}, body: { mensaje: texto, historial: hist.slice(-8), imagen: imagen || undefined }, _vxKeys: ['d:' + uid] };
+  const out = await new Promise((ok) => {
+    const res = { code: 200, setHeader() {}, getHeader() {}, status(c) { this.code = c; return this; }, json(o) { ok(Object.assign({ _code: this.code }, o)); } };
+    vertixHandler(req, res).catch(() => ok({ error: 'Vertix no pudo responder ahora.' }));
+  });
+  if (out.error) return out.error;
+  let t = String(out.say || '');
+  const a = out.action;
+  if (a && a.type === 'play' && a.url) t += '\n' + a.url;
+  else if (a && a.type === 'open') { const u = a.url || (DC_SITIOS[a.site] && DC_SITIOS[a.site](a.query)); if (u) t += '\n' + u; }
+  hist.push({ role: 'user', content: texto }, { role: 'assistant', content: String(out.say || '') }); dcHist.set(uid, hist.slice(-10));
+  if (typeof out.restantes === 'number' && out.restantes <= 5) t += `\n(te quedan ${out.restantes} mensajes)`;
+  return t;
+}
+async function dcMensaje(msg, botId) {
+  if (!msg || !msg.author || msg.author.bot || !msg.content && !(msg.attachments || []).length) return;
+  if (DC_CANALES.length && !DC_CANALES.includes(String(msg.channel_id))) return;
+  const texto = dcTextoDe(msg, botId);
+  if (texto === null) return;
+  const dm = !msg.guild_id;
+  let resp;
+  if (!texto && !(msg.attachments || []).length) resp = 'Dime qué necesitas. Ejemplo: Vertix qué es Uzivert Hub';
+  else { dcApi('POST', `/channels/${msg.channel_id}/typing`).catch(() => {}); resp = await dcResponder(msg, texto || 'Describe esta imagen y dime qué ves.'); }
+  resp = String(resp || '').trim() || 'No te entendí.';
+  const trozos = []; while (resp.length > 1900) { let c = resp.lastIndexOf('\n', 1900); if (c < 800) c = 1900; trozos.push(resp.slice(0, c)); resp = resp.slice(c).trimStart(); } trozos.push(resp);
+  for (let i = 0; i < Math.min(trozos.length, 4); i++) await dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ content: trozos[i], allowed_mentions: { parse: [] } }, i === 0 && !dm ? { message_reference: { message_id: msg.id, fail_if_not_exists: false } } : {}));
+}
+function dcIniciar() {
+  if (!DC_TOKEN) return;
+  if (typeof WebSocket !== 'function') { console.error('[bot] Este Node no tiene WebSocket (usa Node 22 o más nuevo).'); return; }
+  let ws, seq = null, sesion = '', urlRes = '', hb = null, botId = '', vivo = true, reintentos = 0;
+  const conectar = (resumir) => {
+    try { ws = new WebSocket((resumir && urlRes) || 'wss://gateway.discord.gg/?v=10&encoding=json'); } catch (e) { console.error('[bot] ws:', e.message); return setTimeout(() => conectar(false), 15000); }
+    const enviar = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
+    ws.onmessage = (ev) => {
+      let p; try { p = JSON.parse(ev.data); } catch { return; }
+      if (p.s != null) seq = p.s;
+      if (p.op === 10) {
+        vivo = true; clearInterval(hb);
+        hb = setInterval(() => { if (!vivo) { try { ws.close(4000); } catch {} return; } vivo = false; enviar({ op: 1, d: seq }); }, p.d.heartbeat_interval);
+        if (resumir && sesion) enviar({ op: 6, d: { token: DC_TOKEN, session_id: sesion, seq } });
+        else enviar({ op: 2, d: { token: DC_TOKEN, intents: (1 << 0) | (1 << 9) | (1 << 12) | (1 << 15), properties: { os: 'linux', browser: 'uzivert', device: 'uzivert' }, presence: { status: 'online', activities: [{ name: 'Vertix | Uzivert Hub', type: 0 }], afk: false } } });
+      } else if (p.op === 11) { vivo = true; }
+      else if (p.op === 1) { enviar({ op: 1, d: seq }); }
+      else if (p.op === 7) { try { ws.close(4000); } catch {} }
+      else if (p.op === 9) { sesion = ''; seq = null; setTimeout(() => { try { ws.close(4000); } catch {} }, 2000); }
+      else if (p.op === 0) {
+        if (p.t === 'READY') { sesion = p.d.session_id; urlRes = p.d.resume_gateway_url ? p.d.resume_gateway_url + '/?v=10&encoding=json' : ''; botId = p.d.user.id; reintentos = 0; console.log('[bot] Vertix conectado como', p.d.user.username); }
+        else if (p.t === 'MESSAGE_CREATE') dcMensaje(p.d, botId).catch((e) => console.error('[bot] mensaje:', e.message));
+      }
+    };
+    ws.onclose = (ev) => {
+      clearInterval(hb);
+      if ([4004, 4010, 4011, 4012, 4013, 4014].includes(ev.code)) { console.error('[bot] Discord rechazó la conexión (código ' + ev.code + '). Revisa el token y los intents.'); return; }
+      reintentos++; setTimeout(() => conectar(!!sesion && ev.code !== 4007 && ev.code !== 4009), Math.min(30000, 2000 * reintentos));
+    };
+    ws.onerror = () => {};
+  };
+  conectar(false);
+}
+if (require.main === module) { app.listen(PORT, () => console.log(`${SITE_NAME} web en puerto ${PORT}`)); dcIniciar(); }
