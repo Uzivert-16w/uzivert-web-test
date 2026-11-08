@@ -139,8 +139,8 @@ function vxId(req, res) {                                          // id anónim
 function vxCuotaGet(req, res) {
   const n = Date.now(), ks = ['c:' + vxId(req, res), 'i:' + vxHash(ip(req))];
   const es = ks.map((k) => { let e = vxEstado.get(k); if (e && e.hasta && e.hasta <= n) { vxEstado.delete(k); e = null; } return e; }).filter(Boolean);
-  const e = es.length ? es.reduce((a, c) => ({ left: Math.min(a.left, c.left), inicio: Math.min(a.inicio || n, c.inicio || n), hasta: Math.max(a.hasta, c.hasta), ult: Math.max(a.ult || 0, c.ult || 0) }))
-    : { left: VX_MAX, inicio: 0, hasta: 0, ult: n };
+  const e = es.length ? es.reduce((a, c) => ({ left: Math.min(a.left, c.left), inicio: Math.min(a.inicio || n, c.inicio || n), hasta: Math.max(a.hasta, c.hasta), ult: Math.max(a.ult || 0, c.ult || 0), imgs: (a.imgs || []).length >= (c.imgs || []).length ? (a.imgs || []) : (c.imgs || []) }))
+    : { left: VX_MAX, inicio: 0, hasta: 0, ult: n, imgs: [] };
   for (const k of ks) vxEstado.set(k, e);                          // mismo objeto bajo las dos claves
   return e;
 }
@@ -160,6 +160,16 @@ function vertixEspera(req, res) {                                  // gasta 1 me
   vxMarcar();
   return 0;
 }
+const VX_FOTOS = 3, VX_FOTOS_VENTANA = 2 * 3600e3;                 // 3 fotos cada 2 horas
+function vxFoto(req) {                                             // gasta una foto; devuelve ms de espera si ya no hay (0 = ok)
+  if (isAdmin(req)) return 0;
+  const e = vxCuotaGet(req), n = Date.now();
+  e.imgs = (e.imgs || []).filter((t) => n - t < VX_FOTOS_VENTANA);
+  if (e.imgs.length >= VX_FOTOS) return VX_FOTOS_VENTANA - (n - e.imgs[0]);
+  e.imgs.push(n); e.ult = n; vxMarcar();
+  return 0;
+}
+function vxFotoDevolver(req) { if (isAdmin(req)) return; const e = vxCuotaGet(req); if (e.imgs && e.imgs.length) { e.imgs.pop(); vxMarcar(); } }
 function vxDevolver(req) {                                         // reembolsa un mensaje si la IA falló
   if (isAdmin(req)) return;
   const e = vxCuotaGet(req);
@@ -337,6 +347,12 @@ app.post('/api/vertix', needJson, async (req, res) => {
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
   if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
+  let fotoGastada = false;
+  if (imagen) {
+    const w = vxFoto(req);
+    if (w > 0) { vxDevolver(req); const tm = Math.ceil(w / 60e3); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, action: null, say: `Llegaste al límite de ${VX_FOTOS} fotos cada 2 horas. Podrás enviar otra en ${tm >= 60 ? Math.floor(tm / 60) + ' h ' + (tm % 60) + ' min' : tm + ' min'}.` }); }
+    fotoGastada = true;
+  }
   const hist = (Array.isArray(b.historial) ? b.historial : []).slice(-10)
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .map((m) => ({ role: m.role, content: clean(m.content, 1200) }));
@@ -382,7 +398,7 @@ app.post('/api/vertix', needJson, async (req, res) => {
   } catch (e) {
     console.error('vertix:', e.status, e.message);
     const msg = e.status === 429 ? 'Estoy recibiendo muchos pedidos. Intenta de nuevo en unos segundos.' : (e.status === 401 || e.status === 402 || e.status === 404) ? 'Vertix está en mantenimiento por ahora.' : 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.';
-    vxDevolver(req);
+    vxDevolver(req); if (fotoGastada) vxFotoDevolver(req);
     res.status(502).json({ error: msg, restantes: vxCuotaInfo(req).restantes });
   }
 });
