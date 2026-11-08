@@ -335,6 +335,31 @@ function vxVozMenu() {
   const sl = (txt, k, min, max, step) => { const w = document.createElement('label'); w.className = 'vx-sl'; const s = document.createElement('span'); s.textContent = txt; const i = document.createElement('input'); i.type = 'range'; i.min = min; i.max = max; i.step = step; i.value = vxVoz[k]; i.addEventListener('input', () => { vxVoz[k] = +i.value; vxVozGuardar(); }); i.addEventListener('change', () => vxHablar('Así suena mi voz con este ajuste.', true)); w.append(s, i); sh.appendChild(w); };
   sl('Velocidad', 'rate', 0.7, 1.4, 0.05); sl('Tono', 'pitch', 0.7, 1.3, 0.05);
 }
+function vxVerifCard(host) {                                       // mini verificación dentro del chat
+  const box = document.createElement('div'); box.className = 'vx-verif';
+  const inp = document.createElement('input'); inp.placeholder = 'Tu usuario de Roblox'; inp.maxLength = 20; inp.autocomplete = 'off'; inp.autocapitalize = 'off'; inp.spellcheck = false;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Empezar';
+  const info = document.createElement('div'); info.className = 'vx-vinfo'; const out = document.createElement('p'); out.className = 'nota';
+  box.append(inp, b, info, out); host.appendChild(box);
+  let token = null;
+  b.addEventListener('click', async () => {
+    b.disabled = true; out.textContent = '';
+    try {
+      if (!token) {
+        const d = await api('/api/verificar/iniciar', { method: 'POST', body: { usuario: inp.value.trim() } });
+        token = d.token; inp.hidden = true; info.textContent = '';
+        const l = document.createElement('p'); l.textContent = 'Código para ' + d.usuario + ' (vale ' + d.minutos + ' minutos). Pégalo en la descripción de tu perfil de Roblox y guarda:'; const c = document.createElement('code'); c.className = 'vx-code'; c.textContent = d.code;
+        info.append(l, c); b.textContent = 'Ya lo puse, verificar';
+        vxHablar('Listo. Te di tu código. Pégalo en la descripción de tu perfil y toca verificar.');
+      } else {
+        await api('/api/verificar/confirmar', { method: 'POST', body: { token } });
+        info.textContent = ''; out.textContent = 'Cuenta verificada correctamente.'; b.hidden = true;
+        try { await loadMe(); } catch {} vxHablar('Listo, tu cuenta quedó verificada.');
+      }
+    } catch (e) { out.textContent = e.message; }
+    b.disabled = false; $('vx-log').scrollTop = 1e9;
+  });
+}
 async function vxEnviar(texto) {
   texto = String(texto || '').trim(); if ((!texto && !vxImg) || vxOcupado) return;
   const imagen = vxImg; vxImg = ''; $('vx-prev').hidden = true;
@@ -358,6 +383,7 @@ async function vxEnviar(texto) {
       const l = document.createElement('a'); l.className = 'btn ghost'; l.href = a.url; l.target = '_blank'; l.rel = 'noopener'; l.textContent = 'Abrir en YouTube';
       esp.appendChild(l);
     }
+    else if (a && a.type === 'verify') { vxVerifCard(esp); }
     else if (a && a.type === 'go') { setTimeout(() => go(a.page), 900); }
     else if (a && a.type === 'open' && (a.url || VX_URLS[a.site])) {
       const url = a.url || VX_URLS[a.site](a.query);
