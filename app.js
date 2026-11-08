@@ -94,7 +94,7 @@ function go(p) {
 document.querySelectorAll('[data-p]').forEach((a) => a.addEventListener('click', () => { closeMenu(); go(a.dataset.p); }));
 document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
 const start = location.hash.slice(1);
-if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates', 'vertix'].includes(start)) go(start);
+if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates', 'vertix', 'donaciones'].includes(start)) go(start);
 api('/api/config').then((c) => { $('dc').href = c.discord; $('dc2').href = c.discord; if (c.version) { $('ver').textContent = c.version; $('ver2').textContent = c.version; } }).catch(() => {});
 $('year').textContent = new Date().getFullYear();
 
@@ -315,7 +315,8 @@ async function vxEnviar(texto) {
   if (imagen) { const ph = document.createElement('img'); ph.className = 'vx-ph'; ph.src = imagen; ph.alt = 'Foto enviada'; mu.prepend(ph); }
   const esp = vxPuntos();
   try {
-    const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist, imagen: imagen || undefined } });
+    const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist, imagen: imagen || undefined, modelo: vxModelo || undefined } });
+    vxCuota(d);
     await vxEscribir(esp, d.say);
     vxHist.push({ role: 'user', content: (imagen ? '[foto] ' : '') + (texto || 'Describe la foto') }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
     if (!(d.action && d.action.type === 'play')) vxHablar(/```/.test(d.say) ? 'Te dejo el código en el chat.' : d.say.slice(0, 400));
@@ -336,12 +337,46 @@ async function vxEnviar(texto) {
       esp.appendChild(document.createElement('br')); esp.appendChild(l);
       try { window.open(url, '_blank', 'noopener'); } catch {}
     }
-  } catch (e) { esp.textContent = e.message; if (e.status === 429) { vxHablar('Espera unos minutos para volver a usarme.'); } }
+  } catch (e) { esp.textContent = e.message; if (e.status === 429) vxHablar('Se acabaron tus mensajes. Vuelve más tarde.'); vxEstadoGet(); }
   vxOcupado = false; $('vx-log').scrollTop = 1e9;
+}
+let vxModelo = ''; try { vxModelo = localStorage.getItem('vx_modelo') || ''; } catch {}
+let vxIlim = false, vxMax = 50, vxEsperaTimer = 0;
+function vxCuota(d) {
+  if (!d || vxIlim) return;
+  const c = $('vx-cnt'), inp = $('vx-in');
+  if (typeof d.restantes === 'number') { c.textContent = d.restantes + '/' + vxMax; c.classList.toggle('low', d.restantes <= 5); }
+  if (d.espera > 0) {
+    clearInterval(vxEsperaTimer); let t = d.espera;
+    const pinta = () => { const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60; $('vx-info').textContent = 'Sin mensajes. Vuelve en ' + (h ? h + ' h ' : '') + m + ' min ' + (h ? '' : s + ' s'); };
+    pinta(); inp.disabled = true;
+    vxEsperaTimer = setInterval(() => { t--; if (t <= 0) { clearInterval(vxEsperaTimer); inp.disabled = false; vxEstadoGet(); } else pinta(); }, 1000);
+  }
+}
+function vxEstadoGet() {
+  return api('/api/vertix/estado').then((d) => {
+    vxIlim = !!d.ilimitado; vxMax = d.max || 50;
+    $('vx-cnt').textContent = d.ilimitado ? 'Ilimitado' : d.restantes + '/' + vxMax; $('vx-cnt').classList.toggle('low', !d.ilimitado && d.restantes <= 5);
+    $('vx-info').textContent = !d.activo ? 'No disponible por ahora' : d.ilimitado ? 'Sin límite de mensajes (admin)' : 'Cada mensaje gasta 1 de ' + vxMax;
+    const ms = d.modelos || [];
+    if (!ms.find((m) => m.id === vxModelo)) vxModelo = ms[0] ? ms[0].id : '';
+    const sh = $('vx-sheet'); sh.textContent = '';
+    ms.forEach((m) => {
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'option'); b.className = 'vx-opt' + (m.id === vxModelo ? ' on' : '');
+      const n = document.createElement('b'); n.textContent = m.nombre; const s = document.createElement('small'); s.textContent = m.desc || '';
+      b.append(n, s);
+      b.addEventListener('click', () => { vxModelo = m.id; try { localStorage.setItem('vx_modelo', m.id); } catch {} sh.hidden = true; $('vx-mod').setAttribute('aria-expanded', 'false'); vxEstadoGet(); });
+      sh.appendChild(b);
+    });
+    const cur = ms.find((m) => m.id === vxModelo); $('vx-modn').textContent = cur ? cur.nombre : 'Modelo';
+    $('vx-mod').style.display = ms.length > 1 ? '' : 'none';
+    vxCuota(d);
+  }).catch(() => {});
 }
 function vxInit() {
   if (vxListo) return; vxListo = true;
-  api('/api/vertix/estado').then((d) => { $('vx-info').textContent = !d.activo ? 'No disponible por ahora' : d.ilimitado ? 'Sin límite de mensajes (admin)' : 'Límite: 10 mensajes por minuto'; }).catch(() => {});
+  vxEstadoGet();
+  $('vx-mod').addEventListener('click', () => { const sh = $('vx-sheet'); sh.hidden = !sh.hidden; $('vx-mod').setAttribute('aria-expanded', String(!sh.hidden)); });
   vxMsg('a', 'Hola, soy Vertix (beta v0.2.1). Pídeme que reproduzca música, busque algo, abra una página o te ayude con código.'); $('vx-back').addEventListener('click', () => go('inicio'));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { $('vx-mic').disabled = true; $('vx-mic').style.opacity = '.4'; $('vx-res').textContent = 'Tu navegador no soporta voz. Usa Chrome, o escribe tu mensaje.'; $('vx-res').className = 'msg err'; }
