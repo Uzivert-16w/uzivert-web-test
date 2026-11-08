@@ -1032,8 +1032,9 @@ const DC_TOKEN = env.DISCORD_BOT_TOKEN || '';
 const DC_CANALES = (env.VERTIX_CANALES || '').split(',').map((x) => x.trim()).filter(Boolean);   // opcional: solo en estos canales
 const DC_SITIOS = { youtube: (q) => q ? 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q) : 'https://www.youtube.com', google: (q) => q ? 'https://www.google.com/search?q=' + encodeURIComponent(q) : 'https://www.google.com', tiktok: (q) => q ? 'https://www.tiktok.com/search?q=' + encodeURIComponent(q) : 'https://www.tiktok.com', spotify: (q) => q ? 'https://open.spotify.com/search/' + encodeURIComponent(q) : 'https://open.spotify.com', discord: () => DISCORD_INVITE, roblox: () => 'https://www.roblox.com' };
 const dcHist = new Map();                                          // userId -> [{role,content}]
+const DC_API = (env.DISCORD_API_BASE || 'https://discord.com/api/v10').replace(/\/$/, '');
 async function dcApi(metodo, ruta, cuerpo) {
-  const r = await fetch('https://discord.com/api/v10' + ruta, { method: metodo, headers: { Authorization: 'Bot ' + DC_TOKEN, 'Content-Type': 'application/json' }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+  const r = await fetch(DC_API + ruta, { method: metodo, headers: { Authorization: 'Bot ' + DC_TOKEN, 'Content-Type': 'application/json' }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
   if (!r.ok) throw new Error('discord ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 150));
   return r.status === 204 ? null : r.json().catch(() => null);
 }
@@ -1071,11 +1072,105 @@ async function dcResponder(msg, texto) {
   if (typeof out.restantes === 'number' && out.restantes <= 5) t += `\n(te quedan ${out.restantes} mensajes)`;
   return t;
 }
+// ---- Comandos de moderación y perfiles (solo admins): Vertix lock / unlock / ban / unban / user <Roblox>
+const DC_ADMINS = (env.VERTIX_ADMINS || '').split(',').map((x) => x.trim()).filter(Boolean);
+const DC_SEND = (1n << 11n) | (1n << 38n);                         // SEND_MESSAGES | SEND_MESSAGES_IN_THREADS
+const dcCmdRe = /^(lock|bloquear|unlock|desbloquear|ban|banear|unban|desbanear|user|usuario|perfil)\b\s*(.*)$/is;
+async function dcEsAdmin(msg) {
+  const id = String(msg.author.id);
+  if (DC_ADMINS.includes(id)) return true;
+  if (!msg.guild_id) return false;
+  try { const g = await dcApi('GET', '/guilds/' + msg.guild_id); return g && String(g.owner_id) === id; } catch { return false; }
+}
+async function dcLock(msg, cerrar) {
+  const gid = msg.guild_id, ch = msg.channel_id;
+  const c = await dcApi('GET', '/channels/' + ch);
+  const ow = (c.permission_overwrites || []).find((o) => String(o.id) === String(gid) && o.type === 0) || { allow: '0', deny: '0' };
+  let allow = BigInt(ow.allow || 0), deny = BigInt(ow.deny || 0);
+  if (cerrar) { await dcApi('POST', `/channels/${ch}/messages`, { content: '🔒' }).catch(() => {}); deny |= DC_SEND; allow &= ~DC_SEND; }
+  else { deny &= ~DC_SEND; }
+  await dcApi('PUT', `/channels/${ch}/permissions/${gid}`, { type: 0, allow: allow.toString(), deny: deny.toString() });
+  if (!cerrar) await dcApi('POST', `/channels/${ch}/messages`, { content: '🔓' });
+}
+async function dcObjetivo(msg, arg) {                              // mención, ID o nombre exacto -> {id, name}
+  const m = (msg.mentions || []).find((u) => !u.bot);
+  if (m) return { id: m.id, name: m.username };
+  const id = (String(arg).match(/\d{15,22}/) || [])[0];
+  if (id) return { id, name: id };
+  const q = String(arg).replace(/^@/, '').trim(); if (!q || !msg.guild_id) return null;
+  const l = await dcApi('GET', `/guilds/${msg.guild_id}/members/search?query=${encodeURIComponent(q)}&limit=5`).catch(() => []);
+  const ex = (l || []).filter((x) => x.user && [x.user.username, x.user.global_name, x.nick].some((n) => n && n.toLowerCase() === q.toLowerCase()));
+  return ex.length === 1 ? { id: ex[0].user.id, name: ex[0].user.username } : null;
+}
+async function dcBan(msg, botId, arg, desban) {
+  const t = await dcObjetivo(msg, arg);
+  if (!t) return 'No encontré a ese usuario. Menciónalo o pasa su ID.';
+  if (t.id === String(msg.author.id) || t.id === String(botId)) return 'No puedo hacer eso.';
+  if (!desban) {
+    const g = await dcApi('GET', '/guilds/' + msg.guild_id);
+    if (String(g.owner_id) === t.id || DC_ADMINS.includes(t.id)) return 'No puedo banear a ese usuario.';
+    await dcApi('PUT', `/guilds/${msg.guild_id}/bans/${t.id}`, { delete_message_seconds: 0 });
+  } else await dcApi('DELETE', `/guilds/${msg.guild_id}/bans/${t.id}`);
+  console.log(`[discord] ${desban ? 'unban' : 'ban'} ${t.id} por ${msg.author.id} en ${msg.guild_id}`);
+  return '👍';
+}
+async function dcRbx(ruta, base, cuerpo) {
+  const r = await fetch(base + ruta, cuerpo ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) } : undefined);
+  if (!r.ok) throw new Error('roblox ' + r.status); return r.json();
+}
+async function dcPerfil(nombre) {                                  // devuelve {embeds:[...]} o texto de error
+  nombre = String(nombre || '').trim().replace(/^@/, '');
+  if (!/^[A-Za-z0-9_]{3,20}$/.test(nombre)) return 'Escribe un usuario de Roblox válido. Ejemplo: Vertix user Builderman';
+  const U = ROBLOX_USERS, F = (env.ROBLOX_FRIENDS_API || 'https://friends.roblox.com').replace(/\/$/, ''), T = (env.ROBLOX_THUMBS_API || 'https://thumbnails.roblox.com').replace(/\/$/, ''), I = (env.ROBLOX_INV_API || 'https://inventory.roblox.com').replace(/\/$/, '');
+  const b = await dcRbx('/v1/usernames/users', U, { usernames: [nombre], excludeBannedUsers: false }).catch(() => null);
+  const u0 = b && b.data && b.data[0]; if (!u0) return 'No encontré ese usuario en Roblox.';
+  const id = u0.id, ok = (p) => p.catch(() => null);
+  const [u, am, se, sg, av, hd, inv, ver] = await Promise.all([
+    ok(dcRbx('/v1/users/' + id, U)), ok(dcRbx(`/v1/users/${id}/friends/count`, F)), ok(dcRbx(`/v1/users/${id}/followers/count`, F)), ok(dcRbx(`/v1/users/${id}/followings/count`, F)),
+    ok(dcRbx(`/v1/users/avatar?userIds=${id}&size=420x420&format=Png&isCircular=false`, T)), ok(dcRbx(`/v1/users/avatar-headshot?userIds=${id}&size=150x150&format=Png&isCircular=false`, T)),
+    ok(dcRbx(`/v1/users/${id}/can-view-inventory`, I)), ok(loadVerified())]);
+  const dato = (x) => x && x.data && x.data[0] && x.data[0].imageUrl;
+  const verif = (ver || []).find((v) => String(v.id) === String(id));
+  const baneado = u && u.isBanned;
+  const f = (n) => (n && typeof n.count === 'number') ? n.count.toLocaleString('es') : '-';
+  const ts = (iso) => iso ? Math.floor(new Date(iso).getTime() / 1000) : null;
+  const campos = [
+    { name: 'Hub', value: verif ? 'Verificado' : 'No verificado', inline: true },
+    { name: 'Cuenta', value: baneado ? 'Baneada en Roblox' : 'Activa', inline: true },
+    { name: 'Inventario', value: inv && typeof inv.canView === 'boolean' ? (inv.canView ? `[Público](https://www.roblox.com/users/${id}/inventory)` : 'Privado') : 'No disponible', inline: true },
+    { name: 'Amigos', value: f(am), inline: true }, { name: 'Seguidores', value: f(se), inline: true }, { name: 'Siguiendo', value: f(sg), inline: true }];
+  if (u && u.created) campos.push({ name: 'Creada', value: `<t:${ts(u.created)}:D> (<t:${ts(u.created)}:R>)`, inline: false });
+  if (verif && verif.fecha) campos.push({ name: 'Verificado el', value: `<t:${ts(verif.fecha)}:D>`, inline: false });
+  const bio = u && u.description ? String(u.description).replace(/```/g, '').slice(0, 300) : '';
+  const emb = { title: (u && u.displayName) || u0.name, url: 'https://www.roblox.com/users/' + id + '/profile', color: baneado ? 0xed4245 : verif ? 0x57f287 : 0x5865f2,
+    description: `@${(u && u.name) || u0.name}  |  ID ${id}` + (bio ? '\n\n' + bio : ''), fields: campos, footer: { text: 'Vertix | Uzivert Hub' }, timestamp: new Date().toISOString() };
+  if (dato(hd)) emb.thumbnail = { url: dato(hd) }; if (dato(av)) emb.image = { url: dato(av) };
+  return { embeds: [emb] };
+}
+async function dcComando(msg, botId, cmd, resto) {                 // devuelve true si lo manejó
+  const c = cmd.toLowerCase(), esPerfil = /^(user|usuario|perfil)$/.test(c);
+  const enviar = (cuerpo) => dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }, typeof cuerpo === 'string' ? { content: cuerpo } : cuerpo));
+  try {
+    if (esPerfil) { dcApi('POST', `/channels/${msg.channel_id}/typing`).catch(() => {}); await enviar(await dcPerfil(resto)); return true; }
+    if (!msg.guild_id) { await enviar('Ese comando solo funciona dentro de un servidor.'); return true; }
+    if (!(await dcEsAdmin(msg))) { await enviar('No tienes permiso para eso.'); return true; }
+    if (/^(lock|bloquear)$/.test(c)) await dcLock(msg, true);
+    else if (/^(unlock|desbloquear)$/.test(c)) await dcLock(msg, false);
+    else await enviar(await dcBan(msg, botId, resto, /^(unban|desbanear)$/.test(c)));
+  } catch (e) {
+    console.error('[discord] comando', c, e.message);
+    const perm = /\b(403|50013|50001)\b/.test(e.message);
+    await enviar(perm ? 'No tengo permisos para hacer eso. Revisa que mi rol esté por encima y tenga Banear miembros y Gestionar roles/canales.' : 'No pude completarlo.').catch(() => {});
+  }
+  return true;
+}
 async function dcMensaje(msg, botId) {
   if (!msg || !msg.author || msg.author.bot || !msg.content && !(msg.attachments || []).length) return;
   if (DC_CANALES.length && !DC_CANALES.includes(String(msg.channel_id))) return;
   const texto = dcTextoDe(msg, botId);
   if (texto === null) return;
+  const mc = dcCmdRe.exec(texto.trim());
+  if (mc && !(msg.attachments || []).length && await dcComando(msg, botId, mc[1], mc[2].trim())) return;
   const dm = !msg.guild_id;
   let resp;
   if (!texto && !(msg.attachments || []).length) resp = 'Dime qué necesitas. Ejemplo: Vertix qué es Uzivert Hub';
