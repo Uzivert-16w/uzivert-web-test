@@ -196,6 +196,8 @@ SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Hay un servidor de Discord oficial, un bot, una API y esta página web (uzivert-web.onrender.com).
 - La página tiene: Inicio, Verificar (se verifica la cuenta de Roblox poniendo un código en la descripción del perfil), Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Creador, Créditos y Términos.
 
+SCRIPTS: nunca inventes loadstrings ni enlaces de scripts. Los scripts de Uzivert Hub los entrega el sistema solo para Duelos y Universal; el loader del hub completo (MM2, MMV, Prison Life, Distrito) exige verificar la cuenta en la página (sección Verificar) y tú no lo entregas.
+
 FOTOS: si el usuario envía una imagen, descríbela o respóndele sobre ella.
 
 PROGRAMACIÓN: SÍ puedes ayudar con código, incluido Lua/Luau para Roblox Studio (scripts para crear juegos, partes, GUIs, sistemas, etc.). Cuando te pidan un ejemplo o un script, escríbelo completo en "say" dentro de un bloque con tres comillas invertidas, con una explicación breve. La única excepción: si piden el script/loadstring de un juego DEL HUB (MM2, MMV, Duelos, Distrito, Prison Life) o un exploit, diles que están en la pestaña Scripts de esta página (hay que verificar la cuenta de Roblox primero) y usa la acción go a "scripts". Si piden verificarse, go a "verificar".
@@ -335,6 +337,24 @@ function vxParse(c) {
 }
 vxModelosInit();
 app.get('/api/vertix/estado', async (req, res) => { noStore(res); await vxCargada; res.json(Object.assign({ activo: !!DEEPSEEK_KEY, modelos: VX_MODELOS.map((m) => ({ id: m.id, nombre: m.nombre, desc: m.mant ? 'En mantenimiento' : m.desc, mant: m.mant, bloqueado: m.mant && !isAdmin(req) })) }, vxCuotaInfo(req, res))); });
+
+// Loaders que Vertix puede entregar (solo Duelos y Universal). El del hub completo exige verificación y NO se entrega.
+const VX_LOADERS = {
+  duelos: env.VX_LOADER_DUELOS || 'loadstring(game:HttpGet("https://duelos-api.vercel.app/loader"))()',
+  universal: env.VX_LOADER_UNIVERSAL || 'loadstring(game:HttpGet("https://uzivert-universal-api.vercel.app/loader"))()',
+};
+function vxScripts(t) {                                            // devuelve {say, action} si piden un script/loader, o null
+  const q = String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const pide = /\b(script|scripts|loader|loadstring|cargador)\b/.test(q);
+  const duelos = /\b(duelos?|duels?|latam)\b/.test(q), uni = /\buniversal\b/.test(q);
+  const otro = /\b(mm2|mmv|murder|prison|distrito|violencia|hub completo|5 juegos|cinco juegos|todos)\b/.test(q);
+  const verbo = /\b(dame|dar|dan|da|pasa|pasame|pasar|mand[ae]|manda|quiero|necesito|tienes|tienen|donde|como consigo|como obtengo|link|enlace|cual)\b/.test(q);
+  if (!pide || !(duelos || uni || otro || verbo)) return null;
+  if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos Latam:\n```lua\n' + VX_LOADERS.duelos + '\n```\nUniversal:\n```lua\n' + VX_LOADERS.universal + '\n```', action: null };
+  if (duelos && !otro) return { say: 'Aquí tienes el loader de Duelos Latam. Cópialo y pégalo en tu ejecutor dentro del juego:\n```lua\n' + VX_LOADERS.duelos + '\n```', action: null };
+  if (uni && !otro) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n```lua\n' + VX_LOADERS.universal + '\n```', action: null };
+  return { say: 'Yo solo puedo darte los loaders de Duelos Latam y del Universal. Pídeme uno diciendo, por ejemplo, "script de duelos" o "script universal". Los demás juegos (MM2, MMV, Prison Life y Distrito) van en el hub completo, que se consigue verificando tu cuenta en la sección Verificar de la página.', action: { type: 'go', page: 'verificar' } };
+}
 const vertixHandler = async (req, res) => {
   noStore(res);
   if (!DEEPSEEK_KEY) return res.status(503).json({ error: 'Vertix no está disponible por ahora.' });
@@ -346,6 +366,7 @@ const vertixHandler = async (req, res) => {
   const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
+  if (!imagen) { const sc = vxScripts(texto); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
   if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
   let fotoGastada = false;
   if (imagen) {
