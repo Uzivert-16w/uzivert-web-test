@@ -177,7 +177,14 @@ function vxDevolver(req) {                                         // reembolsa 
 }
 // Versiones/modelos elegibles. Se pueden definir con VX_MODELOS (JSON: [{id,nombre,desc,model,url?,key?}]).
 let VX_MODELOS = [];
-try { const j = JSON.parse(env.VX_MODELOS || '[]'); if (Array.isArray(j)) VX_MODELOS = j.filter((m) => m && m.id && m.model).map((m) => ({ id: String(m.id).slice(0, 20), nombre: String(m.nombre || m.id).slice(0, 30), desc: String(m.desc || '').slice(0, 80), model: String(m.model), url: m.url ? String(m.url) : '', key: m.key ? String(m.key) : '', mant: !!m.mant })); } catch (e) { console.warn('[aviso] VX_MODELOS inválido'); }
+function vxLimpiaJson(t) {                                         // tolera lo que mete el teléfono al pegar: comillas curvas, saltos, espacios raros
+  t = String(t || '').replace(/[​-‍﻿ ]/g, ' ').replace(/[“”„‟«»]/g, '"').replace(/[‘’]/g, "'").trim();
+  if (/^'.*'$/s.test(t) || (/^".*"$/s.test(t) && t[1] === '[')) t = t.slice(1, -1);
+  const a = t.indexOf('['), b = t.lastIndexOf(']');
+  if (a >= 0 && b > a) t = t.slice(a, b + 1);
+  return t.replace(/,\s*([\]}])/g, '$1');
+}
+try { const j = JSON.parse(vxLimpiaJson(env.VX_MODELOS) || '[]'); if (Array.isArray(j)) VX_MODELOS = j.filter((m) => m && m.id && m.model).map((m) => ({ id: String(m.id).slice(0, 20), nombre: String(m.nombre || m.id).slice(0, 30), desc: String(m.desc || '').slice(0, 80), model: String(m.model), url: m.url ? String(m.url) : '', key: m.key ? String(m.key) : '', mant: !!m.mant })); } catch (e) { console.warn('[aviso] VX_MODELOS inválido: ' + e.message.replace(/"[^"]{20,}"/g, '"..."') + ' | empieza con: ' + JSON.stringify(String(env.VX_MODELOS || '').slice(0, 25)) + ' | termina con: ' + JSON.stringify(String(env.VX_MODELOS || '').slice(-3)) + ' | largo: ' + String(env.VX_MODELOS || '').length); }
 function vxModelosInit() {
   if (VX_MODELOS.length) return;
   VX_MODELOS.push({ id: 'lite', nombre: 'Vertix Lite', desc: 'Rápido y ligero', model: DEEPSEEK_MODEL, url: '', key: '' });
