@@ -383,6 +383,8 @@ function vxVerif(t, dc, ctx) {
   const NADA = 'No necesitamos tu contraseña, tu PIN, tu correo ni ningún otro dato de tu cuenta. Solo tu nombre de usuario de Roblox.';
   if (sinPaso) return { say: 'Entiendo, pero sin ese paso no se puede verificar tu cuenta. Poner el código en la descripción de tu perfil es la única forma de comprobar que la cuenta es tuya. ' + NADA + ' Si cambias de opinión, solo dime "quiero verificarme".', action: null };
   if (datos && !/\b(como|quiero|ayuda|ayudame|paso)\b/.test(q)) return { say: NADA + ' La verificación solo pide poner un código en la descripción de tu perfil de Roblox. Si quieres empezar, dime "quiero verificarme".', action: null };
+  if (/\b(por que|porque|para que|que es|que significa|sirve|funciona|seguro|riesgo|explica|explicame|diferencia|cuanto|cuando|donde)\b/.test(q)) return null;   // preguntas de fondo las responde la IA
+  if (!/\b(como|quiero|ayuda|ayudame|empezar|empiezo|iniciar|inicio|hacer|hago|paso|pasos|puedo|necesito|me verifico|verificarme|verificarse|verifico mi|verificar mi|verificar mi cuenta)\b/.test(q)) return null;
   const pasos = 'Para verificarte solo necesitas tu usuario de Roblox. ' + NADA + '\n1. Escribe tu usuario.\n2. Te doy un código de 5 palabras.\n3. Pégalo en la descripción de tu perfil de Roblox y guarda.\n4. Toca verificar. El código vale 15 minutos.';
   if (dc) return { say: pasos + '\nLa verificación se hace en la página: https://uzivert-web.onrender.com (sección Verificar).', action: null };
   return { say: pasos, action: { type: 'verify' } };
