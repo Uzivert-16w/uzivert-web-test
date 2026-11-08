@@ -287,7 +287,7 @@ async function vxLLM(messages, op) {
   for (const mo of modelos) {
     const modelo = typeof mo === 'string' ? mo : mo.model, murl = (typeof mo === 'object' && mo.url) || '', mkey = (typeof mo === 'object' && mo.key) || '';
     for (let intento = 0; intento < 3; intento++) {
-      const json = intento < 2;
+      const json = intento < 2 && !/qwen/i.test(modelo);
       try {
         const r = await vxFetch(op.url || murl || DEEPSEEK_URL, {
           method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (op.key || mkey || DEEPSEEK_KEY) },
@@ -296,7 +296,7 @@ async function vxLLM(messages, op) {
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
           const c = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
-          if (c && String(c).trim()) return String(c);
+          if (c && String(c).replace(/<think>[\s\S]*?<\/think>/gi, '').trim()) return String(c).replace(/<think>[\s\S]*?<\/think>/gi, '');
           ultimo = { status: 200, msg: 'respuesta vacía' }; continue;
         }
         ultimo = { status: r.status, msg: JSON.stringify(d).slice(0, 200) };
