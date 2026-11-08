@@ -319,7 +319,7 @@ async function vxEnviar(texto) {
     vxCuota(d);
     await vxEscribir(esp, d.say);
     vxHist.push({ role: 'user', content: (imagen ? '[foto] ' : '') + (texto || 'Describe la foto') }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
-    if (!(d.action && d.action.type === 'play')) vxHablar(/```/.test(d.say) ? 'Te dejo el código en el chat.' : d.say.slice(0, 400));
+    if (!(d.action && d.action.type === 'play')) vxHablar(/```|loadstring\(/.test(d.say) ? 'Te dejo el código en el chat.' : d.say.slice(0, 400));
     const a = d.action;
     if (a && a.type === 'play' && /^[\w-]{11}$/.test(a.videoId)) {
       const f = document.createElement('iframe');
@@ -377,7 +377,7 @@ function vxInit() {
   if (vxListo) return; vxListo = true;
   vxEstadoGet();
   $('vx-mod').addEventListener('click', () => { const sh = $('vx-sheet'); sh.hidden = !sh.hidden; $('vx-mod').setAttribute('aria-expanded', String(!sh.hidden)); });
-  vxMsg('a', 'Hola, soy Vertix (beta v0.2.1). Pídeme que reproduzca música, busque algo, abra una página o te ayude con código.'); $('vx-back').addEventListener('click', () => go('inicio'));
+  vxMsg('a', 'Hola, soy Vertix (beta v0.3.0). Pídeme que reproduzca música, busque algo, abra una página o te ayude con código.'); $('vx-back').addEventListener('click', () => go('inicio'));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { $('vx-mic').disabled = true; $('vx-mic').style.opacity = '.4'; $('vx-res').textContent = 'Tu navegador no soporta voz. Usa Chrome, o escribe tu mensaje.'; $('vx-res').className = 'msg err'; }
   else {
