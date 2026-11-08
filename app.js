@@ -93,8 +93,6 @@ function go(p) {
 }
 document.querySelectorAll('[data-p]').forEach((a) => a.addEventListener('click', () => { closeMenu(); go(a.dataset.p); }));
 document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
-const start = location.hash.slice(1);
-if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates', 'vertix', 'donaciones'].includes(start)) go(start);
 api('/api/config').then((c) => { $('dc').href = c.discord; $('dc2').href = c.discord; if (c.version) { $('ver').textContent = c.version; $('ver2').textContent = c.version; } }).catch(() => {});
 $('year').textContent = new Date().getFullYear();
 
@@ -293,18 +291,49 @@ function vxMsg(quien, texto) {
 }
 const VX_PRON = [[/uzivert/gi, 'Usivert'], [/\bhub\b/gi, 'Jab'], [/\bvertix\b/gi, 'Vértiks'], [/\bMM2\b/g, 'eme eme dos'], [/\bMMV\b/g, 'eme eme ve'], [/youtube/gi, 'Yutub'], [/tiktok/gi, 'Tik Tok'], [/roblox/gi, 'Róblox'], [/\bloadstring\b/gi, 'lóadstring'], [/\bbeta\b/gi, 'béta']];
 function vxPronunciar(t) { let x = String(t).replace(/https?:\/\/\S+/g, 'el enlace'); for (const [re, r] of VX_PRON) x = x.replace(re, r); return x; }
-function vxHablar(t) {
-  if (!$('vx-voz').checked || !('speechSynthesis' in window)) return;
+const VX_PAISES = { AR: 'Argentina', MX: 'México', ES: 'España', US: 'Estados Unidos', CO: 'Colombia', CL: 'Chile', PE: 'Perú', PY: 'Paraguay', UY: 'Uruguay', VE: 'Venezuela', BO: 'Bolivia', EC: 'Ecuador', CR: 'Costa Rica', CU: 'Cuba', DO: 'Rep. Dominicana', GT: 'Guatemala', HN: 'Honduras', NI: 'Nicaragua', PA: 'Panamá', PR: 'Puerto Rico', SV: 'El Salvador', 419: 'Latinoamérica' };
+let vxVoz = { id: '', rate: 1.0, pitch: 1.0 };
+try { Object.assign(vxVoz, JSON.parse(localStorage.getItem('vx_voz') || '{}')); } catch {}
+const vxVozGuardar = () => { try { localStorage.setItem('vx_voz', JSON.stringify(vxVoz)); } catch {} };
+const vxVoces = () => ('speechSynthesis' in window ? speechSynthesis.getVoices().filter((x) => /^es/i.test(x.lang)) : []);
+const vxPaisDe = (v) => { const m = /^es[-_](\w+)/i.exec(v.lang); return (m && VX_PAISES[m[1].toUpperCase()]) || (m ? m[1].toUpperCase() : 'Español'); };
+function vxVozAuto() {                                             // la mejor voz disponible si no elegiste una
+  const puntos = (x) => (/natural|neural|online/i.test(x.name) ? 4 : 0) + (/google/i.test(x.name) ? 3 : 0) + (/^es-(MX|US|419|PY|AR)/i.test(x.lang) ? 1 : 0) + (x.localService ? 0 : 1);
+  return vxVoces().sort((a, b) => puntos(b) - puntos(a))[0] || null;
+}
+function vxVozElegida() { return vxVoces().find((v) => (v.voiceURI || v.name) === vxVoz.id) || vxVozAuto(); }
+function vxHablar(t, forzar) {
+  if (!forzar && !$('vx-voz').checked) return;
+  if (!('speechSynthesis' in window)) return;
   t = vxPronunciar(t);
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.05;
-    const vs = speechSynthesis.getVoices().filter((x) => /^es/i.test(x.lang));
-    const puntos = (x) => (/natural|neural|online/i.test(x.name) ? 4 : 0) + (/google/i.test(x.name) ? 3 : 0) + (/^es-(MX|US|419|PY|AR)/i.test(x.lang) ? 1 : 0) + (x.localService ? 0 : 1);
-    vs.sort((a, b) => puntos(b) - puntos(a));
-    if (vs[0]) { u.voice = vs[0]; u.lang = vs[0].lang; }
-    speechSynthesis.speak(u);
+    const v = vxVozElegida();
+    const partes = String(t).replace(/\s+/g, ' ').match(/[^.!?¡¿\n]+[.!?]*/g) || [t];   // frase por frase suena más natural y no se corta
+    const trozos = []; let cur = '';
+    for (const p of partes) { if ((cur + p).length > 180 && cur) { trozos.push(cur); cur = p; } else cur += p; }
+    if (cur.trim()) trozos.push(cur);
+    for (const x of trozos) {
+      const u = new SpeechSynthesisUtterance(x.trim()); u.lang = v ? v.lang : 'es-ES'; if (v) u.voice = v;
+      u.rate = Math.min(1.4, Math.max(0.7, +vxVoz.rate || 1)); u.pitch = Math.min(1.3, Math.max(0.7, +vxVoz.pitch || 1));
+      speechSynthesis.speak(u);
+    }
   } catch {}
+}
+function vxVozMenu() {
+  const sh = $('vx-vsheet'); sh.textContent = '';
+  const vs = vxVoces(), act = vxVozElegida();
+  const pn = $('vx-vpn'); pn.textContent = 'Voz: ' + (vxVoz.id && act ? vxPaisDe(act) : 'Automática');
+  const t = document.createElement('div'); t.className = 'vx-vt'; t.textContent = 'Elige la voz'; sh.appendChild(t);
+  const lista = document.createElement('div'); lista.className = 'vx-vl';
+  const op = (titulo, sub, on, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'vx-opt' + (on ? ' on' : ''); const n = document.createElement('b'); n.textContent = titulo; const s = document.createElement('small'); s.textContent = sub; b.append(n, s); b.addEventListener('click', fn); lista.appendChild(b); };
+  op('Automática', 'La mejor voz de tu teléfono', !vxVoz.id, () => { vxVoz.id = ''; vxVozGuardar(); vxVozMenu(); vxHablar('Hola, soy Vertix. Así sueno.', true); });
+  const orden = vs.slice().sort((a, b) => (/^es-AR/i.test(b.lang) - /^es-AR/i.test(a.lang)) || vxPaisDe(a).localeCompare(vxPaisDe(b)) || a.name.localeCompare(b.name));
+  orden.forEach((v) => op(vxPaisDe(v), v.name.replace(/^(Microsoft|Google)\s+/i, '$1 '), (v.voiceURI || v.name) === vxVoz.id, () => { vxVoz.id = v.voiceURI || v.name; vxVozGuardar(); vxVozMenu(); vxHablar('Hola, soy Vertix. Así sueno.', true); }));
+  if (!vs.length) { const p = document.createElement('p'); p.className = 'nota'; p.textContent = 'Tu navegador no tiene voces en español instaladas. En Android: Ajustes, Idioma, Salida de texto a voz, y descarga el español.'; lista.appendChild(p); }
+  sh.appendChild(lista);
+  const sl = (txt, k, min, max, step) => { const w = document.createElement('label'); w.className = 'vx-sl'; const s = document.createElement('span'); s.textContent = txt; const i = document.createElement('input'); i.type = 'range'; i.min = min; i.max = max; i.step = step; i.value = vxVoz[k]; i.addEventListener('input', () => { vxVoz[k] = +i.value; vxVozGuardar(); }); i.addEventListener('change', () => vxHablar('Así suena mi voz con este ajuste.', true)); w.append(s, i); sh.appendChild(w); };
+  sl('Velocidad', 'rate', 0.7, 1.4, 0.05); sl('Tono', 'pitch', 0.7, 1.3, 0.05);
 }
 async function vxEnviar(texto) {
   texto = String(texto || '').trim(); if ((!texto && !vxImg) || vxOcupado) return;
@@ -373,10 +402,15 @@ function vxEstadoGet() {
     vxCuota(d);
   }).catch(() => {});
 }
+function vxVozInit() {
+  $('vx-vp').addEventListener('click', () => { const sh = $('vx-vsheet'); sh.hidden = !sh.hidden; $('vx-vp').setAttribute('aria-expanded', String(!sh.hidden)); if (!sh.hidden) { $('vx-sheet').hidden = true; vxVozMenu(); } });
+  if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', vxVozMenu);
+  vxVozMenu();
+}
 function vxInit() {
   if (vxListo) return; vxListo = true;
-  vxEstadoGet();
-  $('vx-mod').addEventListener('click', () => { const sh = $('vx-sheet'); sh.hidden = !sh.hidden; $('vx-mod').setAttribute('aria-expanded', String(!sh.hidden)); });
+  vxEstadoGet(); vxVozInit();
+  $('vx-mod').addEventListener('click', () => { const sh = $('vx-sheet'); sh.hidden = !sh.hidden; $('vx-mod').setAttribute('aria-expanded', String(!sh.hidden)); if (!sh.hidden) $('vx-vsheet').hidden = true; });
   vxMsg('a', 'Hola, soy Vertix (beta v0.3.0). Pídeme que reproduzca música, busque algo, abra una página o te ayude con código.'); $('vx-back').addEventListener('click', () => go('inicio'));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { $('vx-mic').disabled = true; $('vx-mic').style.opacity = '.4'; $('vx-res').textContent = 'Tu navegador no soporta voz. Usa Chrome, o escribe tu mensaje.'; $('vx-res').className = 'msg err'; }
@@ -410,3 +444,5 @@ function vxInit() {
   $('vx-send').addEventListener('click', () => { const t = $('vx-in').value; $('vx-in').value = ''; vxEnviar(t); });
   $('vx-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('vx-send').click(); } });
 }
+const start = location.hash.slice(1);
+if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates', 'vertix', 'donaciones'].includes(start)) go(start);
