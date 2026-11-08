@@ -363,6 +363,10 @@ function vxScripts(t, dc) {                                            // devuel
   if (uni && !otro) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.universal), action: null };
   return { say: 'Yo solo puedo darte los loaders de Duelos Latam y del Universal. Pídeme uno diciendo, por ejemplo, "script de duelos" o "script universal". Los demás juegos (MM2, MMV, Prison Life y Distrito) van en el hub completo, que se consigue verificando tu cuenta en la sección Verificar de la página.', action: { type: 'go', page: 'verificar' } };
 }
+
+// Modelos pequeños a veces prometen el código ("aquí tienes el script") y no lo escriben. Se detecta y se reintenta.
+const vxPideCodigo = (t) => /\b(script|scripts|c[oó]digo|codigo|lua|luau|funci[oó]n|gui|programa|hazme|haz un|haz una|crea un|crea una|escribe|p[aá]salo|pasalo|mu[eé]stramelo|d[aá]melo|damelo)\b/i.test(String(t));
+const vxSoloIntro = (say) => say && !/```/.test(say) && say.length < 420 && /(aqu[ií] tienes|aqu[ií] est[aá]|ejemplo|a continuaci[oó]n|el siguiente|este script|te dejo)/i.test(say);
 const vertixHandler = async (req, res) => {
   noStore(res);
   if (!DEEPSEEK_KEY) return res.status(503).json({ error: 'Vertix no está disponible por ahora.' });
@@ -402,6 +406,14 @@ const vertixHandler = async (req, res) => {
     let out;
     try {
       out = vxParse(await vxLLM(msgs, opVision));
+      const ultimoU = [...hist].reverse().find((m) => m.role === 'user');
+      if (!imagen && out && vxSoloIntro(String(out.say || '')) && (vxPideCodigo(texto) || (ultimoU && vxPideCodigo(ultimoU.content)))) {
+        const nota = msgs.concat([{ role: 'assistant', content: JSON.stringify({ say: String(out.say), action: null }) }, { role: 'user', content: 'No escribiste el código. Escríbelo ahora COMPLETO dentro del campo "say", en un bloque con tres comillas invertidas, sin introducción larga.' }]);
+        for (const cand of [orden[0]].concat(orden.slice(1, 3))) {
+          if (!cand) continue;
+          try { const o2 = vxParse(await vxLLM(nota, { modelos: [cand] })); if (/```/.test(String(o2.say || ''))) { out = o2; break; } } catch (e2) { console.error('vertix-reintento-codigo:', e2.message); }
+        }
+      }
     } catch (e) {
       if (!buscado || !res1.length) throw e;
       console.error('vertix-llm-con-busqueda:', e.status, e.message);
@@ -410,7 +422,9 @@ const vertixHandler = async (req, res) => {
     }
     const say = clean(out.say, 3000) || 'No te entendí, ¿puedes repetirlo?';
     let action = null;
-    const a = out.action;
+    let a = out.action;
+    if (a && a.type === 'play' && !vxQuierePlay(texto)) a = null;                                   // el modelo no puede inventar reproducciones
+    if (a && a.type === 'open' && !buscado && !/\b(abre|abrir|ve a|ir a|ll[eé]vame|entra|link|enlace|p[aá]gina|youtube|google|tiktok|spotify|discord|roblox|web)\b/i.test(texto)) a = null;
     if (a && a.type === 'open') {
       const u = a.url ? vxUrlOk(a.url) : null;
       if (u) action = { type: 'open', url: u };
