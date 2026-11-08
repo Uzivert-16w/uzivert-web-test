@@ -113,20 +113,45 @@ const DEEPSEEK_KEY = env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_URL = (env.DEEPSEEK_URL || 'https://api.deepseek.com/chat/completions');
 const DEEPSEEK_MODEL = env.DEEPSEEK_MODEL || 'deepseek-chat';
 if (!DEEPSEEK_KEY) console.warn('[aviso] DEEPSEEK_API_KEY no definida: el asistente Vertix queda deshabilitado.');
-// Límite: más de 10 mensajes en 1 minuto => bloqueo de 10 minutos. El admin no tiene límite.
-const VX_MAX = 10, VX_VENTANA = 60e3, VX_BLOQUEO = 10 * 60e3;
-const vxEstado = new Map();                                        // ip -> {hits:[], hasta}
-setInterval(() => { const n = Date.now(); for (const [k, v] of vxEstado) if (v.hasta < n && !v.hits.some((t) => n - t < VX_VENTANA)) vxEstado.delete(k); }, 60e3).unref();
-function vertixEspera(req) {                                       // ms que debe esperar (0 = puede enviar)
-  if (isAdmin(req)) return 0;
+// Cuota: 50 mensajes por persona (IP). Al llegar a 0 espera 2 h (uso normal) o 3 h (si gastó los 50 en menos de 30 min). El admin no tiene límite.
+const VX_MAX = 50, VX_ESPERA_BASE = 2 * 3600e3, VX_ESPERA_ALTA = 3 * 3600e3, VX_USO_RAPIDO = 30 * 60e3;
+const vxEstado = new Map();                                        // ip -> {left, inicio, hasta}
+setInterval(() => { const n = Date.now(); for (const [k, v] of vxEstado) if (v.hasta && v.hasta < n) vxEstado.delete(k); }, 60e3).unref();
+function vxCuotaGet(req) {
   const k = ip(req), n = Date.now();
-  const e = vxEstado.get(k) || { hits: [], hasta: 0 };
+  let e = vxEstado.get(k);
+  if (e && e.hasta && e.hasta <= n) { vxEstado.delete(k); e = null; }
+  if (!e) { e = { left: VX_MAX, inicio: 0, hasta: 0 }; vxEstado.set(k, e); }
+  return e;
+}
+function vxCuotaInfo(req) {
+  if (isAdmin(req)) return { ilimitado: true, max: VX_MAX, restantes: VX_MAX, espera: 0 };
+  const e = vxCuotaGet(req), n = Date.now();
+  return { ilimitado: false, max: VX_MAX, restantes: e.left, espera: e.hasta > n ? Math.ceil((e.hasta - n) / 1000) : 0 };
+}
+function vertixEspera(req) {                                       // gasta 1 mensaje; devuelve ms de espera si no hay (0 = ok)
+  if (isAdmin(req)) return 0;
+  const e = vxCuotaGet(req), n = Date.now();
   if (e.hasta > n) return e.hasta - n;
-  e.hits = e.hits.filter((t) => n - t < VX_VENTANA);
-  e.hits.push(n);
-  if (e.hits.length > VX_MAX) { e.hasta = n + VX_BLOQUEO; e.hits = []; vxEstado.set(k, e); return VX_BLOQUEO; }
-  vxEstado.set(k, e);
+  if (e.left <= 0) { e.hasta = n + VX_ESPERA_BASE; return VX_ESPERA_BASE; }
+  if (e.left === VX_MAX) e.inicio = n;
+  e.left--;
+  if (e.left === 0) e.hasta = n + ((n - e.inicio) < VX_USO_RAPIDO ? VX_ESPERA_ALTA : VX_ESPERA_BASE);
   return 0;
+}
+function vxDevolver(req) {                                         // reembolsa un mensaje si la IA falló
+  if (isAdmin(req)) return;
+  const e = vxEstado.get(ip(req));
+  if (!e) return;
+  e.left = Math.min(VX_MAX, e.left + 1); e.hasta = 0;
+}
+// Versiones/modelos elegibles. Se pueden definir con VX_MODELOS (JSON: [{id,nombre,desc,model,url?,key?}]).
+let VX_MODELOS = [];
+try { const j = JSON.parse(env.VX_MODELOS || '[]'); if (Array.isArray(j)) VX_MODELOS = j.filter((m) => m && m.id && m.model).map((m) => ({ id: String(m.id).slice(0, 20), nombre: String(m.nombre || m.id).slice(0, 30), desc: String(m.desc || '').slice(0, 80), model: String(m.model), url: m.url ? String(m.url) : '', key: m.key ? String(m.key) : '' })); } catch (e) { console.warn('[aviso] VX_MODELOS inválido'); }
+function vxModelosInit() {
+  if (VX_MODELOS.length) return;
+  VX_MODELOS.push({ id: 'lite', nombre: 'Vertix Lite', desc: 'Rápido y ligero', model: DEEPSEEK_MODEL, url: '', key: '' });
+  if (env.DEEPSEEK_MODEL2) VX_MODELOS.push({ id: 'pro', nombre: 'Vertix Pro', desc: 'Más inteligente', model: env.DEEPSEEK_MODEL2, url: '', key: '' });
 }
 const VX_SITIOS = ['youtube', 'google', 'tiktok', 'discord', 'spotify', 'roblox'];
 const VX_PAGINAS = ['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'updates', 'estado', 'faq', 'creador', 'creditos'];
@@ -237,14 +262,15 @@ function vxConsulta(t) {
 async function vxLLM(messages, op) {
   op = op || {};
   messages = messages.slice();
-  const modelos = op.model ? [op.model] : [DEEPSEEK_MODEL].concat(DEEPSEEK_MODEL2 ? [DEEPSEEK_MODEL2] : []);
+  const modelos = op.model ? [op.model] : (op.modelos && op.modelos.length ? op.modelos : [DEEPSEEK_MODEL].concat(DEEPSEEK_MODEL2 ? [DEEPSEEK_MODEL2] : []));
   let ultimo = null;
-  for (const modelo of modelos) {
+  for (const mo of modelos) {
+    const modelo = typeof mo === 'string' ? mo : mo.model, murl = (typeof mo === 'object' && mo.url) || '', mkey = (typeof mo === 'object' && mo.key) || '';
     for (let intento = 0; intento < 3; intento++) {
       const json = intento < 2;
       try {
-        const r = await vxFetch(op.url || DEEPSEEK_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (op.key || DEEPSEEK_KEY) },
+        const r = await vxFetch(op.url || murl || DEEPSEEK_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (op.key || mkey || DEEPSEEK_KEY) },
           body: JSON.stringify(Object.assign({ model: modelo, messages, max_tokens: 1800, temperature: 0.6 }, json ? { response_format: { type: 'json_object' } } : {}, /gpt-oss/i.test(modelo) ? { reasoning_effort: 'low' } : {})),
         }, 25000);
         const d = await r.json().catch(() => ({}));
@@ -277,18 +303,19 @@ function vxParse(c) {
   if (resto) o.say = (String(o.say || '') + '\n\n' + resto).trim();
   return o;
 }
-app.get('/api/vertix/estado', (req, res) => { noStore(res); res.json({ activo: !!DEEPSEEK_KEY, ilimitado: isAdmin(req) }); });
+vxModelosInit();
+app.get('/api/vertix/estado', (req, res) => { noStore(res); res.json(Object.assign({ activo: !!DEEPSEEK_KEY, modelos: VX_MODELOS.map((m) => ({ id: m.id, nombre: m.nombre, desc: m.desc })) }, vxCuotaInfo(req))); });
 app.post('/api/vertix', needJson, async (req, res) => {
   noStore(res);
   if (!DEEPSEEK_KEY) return res.status(503).json({ error: 'Vertix no está disponible por ahora.' });
   const espera = vertixEspera(req);
-  if (espera > 0) return res.status(429).json({ error: `Enviaste demasiados mensajes. Espera ${Math.ceil(espera / 60e3)} minuto(s) para volver a usar a Vertix.`, espera: Math.ceil(espera / 1000) });
+  if (espera > 0) { const tm = Math.ceil(espera / 60e3), h = Math.floor(tm / 60), m = tm % 60; return res.status(429).json({ error: `Se acabaron tus mensajes. Vuelve en ${h ? h + ' h ' : ''}${m} min.`, espera: Math.ceil(espera / 1000), restantes: 0 }); }
   const b = req.body || {};
   let texto = clean(b.mensaje, 400);
   const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
-  if (!texto) return res.status(400).json({ error: 'Escribe o di algo.' });
-  if (imagen && !env.VISION_MODEL) return res.status(200).json({ say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null });
+  if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
+  if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
   const hist = (Array.isArray(b.historial) ? b.historial : []).slice(-10)
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .map((m) => ({ role: m.role, content: clean(m.content, 1200) }));
@@ -302,7 +329,9 @@ app.post('/api/vertix', needJson, async (req, res) => {
       sistema += `\n\nINFORMACIÓN DE INTERNET para la pregunta del usuario:\n${lista}`;
     }
     const msgs = [{ role: 'system', content: sistema }, ...hist, { role: 'user', content: imagen ? [{ type: 'text', text: texto }, { type: 'image_url', image_url: { url: imagen } }] : texto }];
-    const opVision = imagen ? { model: env.VISION_MODEL, url: env.VISION_URL || DEEPSEEK_URL, key: env.VISION_KEY || DEEPSEEK_KEY } : undefined;
+    const elegido = VX_MODELOS.find((m) => m.id === b.modelo) || VX_MODELOS[0];
+    const orden = elegido ? [elegido].concat(VX_MODELOS.filter((m) => m !== elegido)) : [];
+    const opVision = imagen ? { model: env.VISION_MODEL, url: env.VISION_URL || DEEPSEEK_URL, key: env.VISION_KEY || DEEPSEEK_KEY } : { modelos: orden };
     let out;
     try {
       out = vxParse(await vxLLM(msgs, opVision));
@@ -327,11 +356,12 @@ app.post('/api/vertix', needJson, async (req, res) => {
       if (v) { action = { type: 'play', videoId: v.id, title: v.title, url: 'https://www.youtube.com/watch?v=' + v.id }; if (!(a && a.type === 'play')) say2 = 'Reproduciendo ' + (v.title || q); }
       else { action = { type: 'open', site: 'youtube', query: q }; if (!(a && a.type === 'play')) say2 = 'No pude reproducirlo aquí, pero te dejo la búsqueda en YouTube.'; }
     }
-    res.json({ say: say2, action, buscado });
+    res.json({ say: say2, action, buscado, restantes: vxCuotaInfo(req).restantes, espera: vxCuotaInfo(req).espera });
   } catch (e) {
     console.error('vertix:', e.status, e.message);
     const msg = e.status === 429 ? 'Estoy recibiendo muchos pedidos. Intenta de nuevo en unos segundos.' : (e.status === 401 || e.status === 402 || e.status === 404) ? 'Vertix está en mantenimiento por ahora.' : 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.';
-    res.status(502).json({ error: msg });
+    vxDevolver(req);
+    res.status(502).json({ error: msg, restantes: vxCuotaInfo(req).restantes });
   }
 });
 
