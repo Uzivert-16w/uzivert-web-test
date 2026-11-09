@@ -194,6 +194,16 @@
   </section>
   <section class="page" id="p-soporte">
     <h2>Soporte</h2><p class="lead" style="font-size:16px;margin-top:6px">Cuéntanos tu problema o idea y el equipo lo recibe al instante.</p>
+    <div class="card" id="sv-card"><h3>Soporte en vivo</h3>
+      <p id="sv-sub">Habla ahora con el equipo. Si no hay nadie conectado, Vertix toma tu caso y se lo pasa al equipo.</p>
+      <div id="sv-pre"><label for="sv-nombre">Tu nombre (opcional)</label><input id="sv-nombre" maxlength="40" placeholder="Cómo te llamas">
+        <label for="sv-contacto">Contacto (Roblox, Discord o correo, opcional)</label><input id="sv-contacto" maxlength="100" placeholder="TuUsuarioRoblox">
+        <div class="row"><button id="sv-start">Iniciar soporte en vivo</button></div></div>
+      <div id="sv-chat" class="hide"><div class="sv-estado" id="sv-estado"></div><div class="sv-log" id="sv-log"></div>
+        <form class="sv-form" id="sv-form" autocomplete="off"><input id="sv-in" maxlength="800" placeholder="Escribe tu mensaje..."><button type="submit" id="sv-send">Enviar</button></form>
+        <div class="row" style="margin-top:10px"><button class="ghost" id="sv-end" type="button">Terminar chat</button></div></div>
+      <div class="msg" id="sv-res"></div>
+    </div>
     <form class="card" id="s-form" autocomplete="off">
       <label for="s-asunto">Asunto</label>
       <select id="s-asunto"><option>Ayuda</option><option>Bug</option><option>Sugerencia</option><option value="Apelacion">Apelación</option><option>Otro</option></select>
