@@ -246,3 +246,17 @@ body.vx-mode main{max-width:900px;padding:8px 10px 10px}
 .vx-verif input{padding:10px 12px;border-radius:12px;border:1px solid var(--line,#2a2a3a);background:transparent;color:inherit;font-size:15px}
 .vx-code{display:block;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.08);font-size:16px;font-weight:700;word-break:break-word;user-select:all}
 .vx-vinfo p{margin:0 0 8px;font-size:14px}
+
+/* soporte en vivo */
+.sv-log{background:#08090d;border:1px solid var(--line);border-radius:12px;padding:12px;height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.sv-m{max-width:85%;padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap}
+.sv-m b{display:block;font-size:11px;color:var(--sub);margin-bottom:2px;font-weight:700}
+.sv-m.u{align-self:flex-end;background:var(--ac);color:#000}
+.sv-m.a,.sv-m.v{align-self:flex-start;background:#14151c;border:1px solid var(--line)}
+.sv-m.s{align-self:center;color:var(--sub);font-size:12.5px;text-align:center}
+.sv-estado{font-size:13px;color:var(--sub);font-weight:600}
+.sv-form{display:flex;gap:8px}.sv-form input{flex:1}.sv-form button{flex:none}
+.sv-lista{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.sv-it{background:#08090d;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer}
+.sv-it.on{border-color:var(--ac)}.sv-it b{font-size:14px}.sv-it small{display:block;color:var(--sub);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sv-it .n{float:right;background:var(--err);color:#000;border-radius:10px;font-size:11px;padding:1px 7px;font-weight:700}
