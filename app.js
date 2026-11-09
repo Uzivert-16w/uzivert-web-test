@@ -109,6 +109,58 @@ $('s-form').addEventListener('submit', async (e) => {
   b.disabled = false;
 });
 
+// --- soporte en vivo ---
+(function () {
+  const TK = 'sv_tok';
+  let tok = '', desde = 0, timer = null, ocupado = false;
+  const ls = { get() { try { return localStorage.getItem(TK) || ''; } catch { return ''; } }, set(v) { try { v ? localStorage.setItem(TK, v) : localStorage.removeItem(TK); } catch {} } };
+  const log = $('sv-log');
+  function pinta(m) {
+    const d = document.createElement('div'); d.className = 'sv-m ' + (m.de === 'usuario' ? 'u' : m.de === 'admin' ? 'a' : m.de === 'vertix' ? 'v' : 's');
+    if (m.de === 'admin' || m.de === 'vertix') { const b = document.createElement('b'); b.textContent = m.de === 'admin' ? 'Equipo' : 'Vertix'; d.append(b); }
+    const t = document.createElement('span'); t.textContent = m.t; d.append(t); log.append(d);
+  }
+  function aplica(r) {
+    (r.msgs || []).forEach((m) => { pinta(m); desde = Math.max(desde, m.n); });
+    if (r.msgs && r.msgs.length) log.scrollTop = log.scrollHeight;
+    $('sv-estado').textContent = r.estado === 'cerrado' ? 'Chat terminado. Gracias, el equipo recibió tu caso.' : r.modo === 'humano' ? 'Hablando con el equipo' : 'Atiende Vertix: el equipo leerá tu caso después';
+    if (r.estado === 'cerrado') fin();
+  }
+  function fin() { clearInterval(timer); timer = null; ls.set(''); $('sv-in').disabled = true; $('sv-send').disabled = true; $('sv-end').textContent = 'Nuevo chat'; $('sv-end').dataset.nuevo = '1'; }
+  async function poll() {
+    if (!tok || ocupado || document.hidden) return;
+    try { aplica(await api('/api/soporte/vivo/mensajes?token=' + encodeURIComponent(tok) + '&desde=' + desde)); }
+    catch (e) { if (e.status === 404) { show($('sv-res'), 'El chat terminó.', false); fin(); } }
+  }
+  function abre() { $('sv-pre').classList.add('hide'); $('sv-chat').classList.remove('hide'); clearInterval(timer); timer = setInterval(poll, 3000); }
+  async function estado() { try { const e = await api('/api/soporte/vivo/estado'); $('sv-sub').textContent = e.disponible ? 'El equipo está conectado ahora. Inicia el chat y te responden en vivo.' : 'Ahora no hay nadie conectado: Vertix toma tu caso y se lo pasa al equipo.'; } catch {} }
+  $('sv-start').addEventListener('click', async (ev) => {
+    ev.target.disabled = true;
+    try {
+      const r = await api('/api/soporte/vivo/iniciar', { method: 'POST', body: { nombre: $('sv-nombre').value, contacto: $('sv-contacto').value } });
+      tok = r.token; ls.set(tok); desde = 0; log.textContent = ''; $('sv-res').className = 'msg'; $('sv-in').disabled = false; $('sv-send').disabled = false; $('sv-end').textContent = 'Terminar chat'; delete $('sv-end').dataset.nuevo;
+      abre(); await poll();
+    } catch (e) { show($('sv-res'), e.message, false); }
+    ev.target.disabled = false;
+  });
+  $('sv-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const t = $('sv-in').value.trim(); if (!t || !tok || ocupado) return;
+    ocupado = true; $('sv-in').value = ''; pinta({ de: 'usuario', t }); log.scrollTop = log.scrollHeight; $('sv-send').disabled = true;
+    try { const r = await api('/api/soporte/vivo/enviar', { method: 'POST', body: { token: tok, texto: t, desde } }); (r.msgs || []).filter((m) => m.de !== 'usuario').forEach((m) => { pinta(m); desde = Math.max(desde, m.n); }); desde = Math.max(desde, ...(r.msgs || []).map((m) => m.n), 0); log.scrollTop = log.scrollHeight; $('sv-estado').textContent = r.estado === 'cerrado' ? 'Chat terminado. Gracias, el equipo recibió tu caso.' : r.modo === 'humano' ? 'Hablando con el equipo' : 'Atiende Vertix: el equipo leerá tu caso después'; if (r.estado === 'cerrado') fin(); }
+    catch (err) { show($('sv-res'), err.message, false); }
+    ocupado = false; if ($('sv-in').disabled === false) { $('sv-send').disabled = false; $('sv-in').focus(); }
+  });
+  $('sv-end').addEventListener('click', async () => {
+    if ($('sv-end').dataset.nuevo) { tok = ''; $('sv-chat').classList.add('hide'); $('sv-pre').classList.remove('hide'); $('sv-res').className = 'msg'; estado(); return; }
+    try { await api('/api/soporte/vivo/cerrar', { method: 'POST', body: { token: tok } }); } catch {}
+    tok = ''; fin(); $('sv-estado').textContent = 'Chat terminado.'; $('sv-end').dataset.nuevo = '1'; $('sv-end').textContent = 'Nuevo chat'; tok = '';
+  });
+  const prev = ls.get();
+  if (prev) { tok = prev; desde = 0; api('/api/soporte/vivo/mensajes?token=' + encodeURIComponent(prev) + '&desde=0').then((r) => { if (r.estado === 'cerrado') { ls.set(''); tok = ''; return; } abre(); aplica(r); }).catch(() => { ls.set(''); tok = ''; }); }
+  estado();
+})();
+
 // --- verificacion ---
 let token = null;
 const vmsg = $('v-msg');
