@@ -856,7 +856,7 @@ async function flushForo() {
   foroSucio = false;
   try { await store.write('foro.json', JSON.stringify(foro)); } catch (e) { foroSucio = true; console.error('guardar foro:', e.message); foroTimer = setTimeout(flushForo, 15000); }
 }
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, async () => { await flushForo(); await vxGuardar(); process.exit(0); });
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, async () => { await flushForo(); await vxGuardar(); await svGuardar(); process.exit(0); });
 
 const RE_LINK = /(https?:\/\/|www\.|discord\.gg|\b[a-z0-9-]{2,}\.(com|net|org|gg|io|ly|xyz|me|co|app|tk|ru|link|gl|cc|to|site|online|ml|ga|cf)\b)/i;
 const nuevoId = () => crypto.randomBytes(5).toString('hex');
@@ -1020,6 +1020,145 @@ if (fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
     fs.createReadStream(path.join(__dirname, n)).pipe(res);
   });
 }
+// ---------- SOPORTE EN VIVO ----------
+// Persona <-> admin (panel). Si no hay admin disponible (o no responde en 90 s) atiende Vertix, toma el caso y el contacto,
+// y al terminar manda la conversación en un .txt al canal de soporte (webhook).
+const SV = new Map();                                              // token -> chat
+let svActivo = false, svVisto = 0, svSucio = false, svTimer = null;
+const svDisponible = () => svActivo && Date.now() - svVisto < 150e3;
+const svCargada = (async () => {
+  try { const j = JSON.parse((await store.read('soporte-vivo.json')) || '{}'); svActivo = !!j.activo; for (const c of j.chats || []) if (c && c.token) SV.set(c.token, c); } catch (e) { console.error('[soporte-vivo] cargar:', e.message); }
+})();
+function svMarcar() { svSucio = true; if (!svTimer) svTimer = setTimeout(svGuardar, 8e3); }
+async function svGuardar() {
+  clearTimeout(svTimer); svTimer = null;
+  if (!svSucio) return; svSucio = false;
+  try { await store.write('soporte-vivo.json', JSON.stringify({ activo: svActivo, chats: [...SV.values()].filter((c) => c.estado === 'abierto' || !c.enviado) })); } catch (e) { svSucio = true; console.error('[soporte-vivo] guardar:', e.message); }
+}
+const svPush = (c, de, t) => { c.msgs.push({ n: c.msgs.length + 1, de, t: String(t).slice(0, 1500), ts: Date.now() }); c.ult = Date.now(); svMarcar(); };
+const svVista = (c, desde) => ({ ok: true, modo: c.modo, estado: c.estado, msgs: c.msgs.filter((m) => m.n > (Number(desde) || 0)) });
+const SV_HORA = (ts) => new Date(ts - 3 * 3600e3).toISOString().slice(11, 16);   // hora de Paraguay aproximada (UTC-3)
+
+const SV_PROMPT = `Eres Vertix, el asistente de soporte de Uzivert Hub (scripts de Roblox). Ahora nadie del equipo está conectado, así que atiendes tú; el equipo leerá todo después y le responderá a la persona.
+Habla en español, amable y corto (máximo 3 frases). Una sola pregunta a la vez.
+Objetivo: 1) entender el caso: qué script o juego, qué pasa exactamente, qué error sale y qué ejecutor usa. 2) Pedir una forma de contactarlo: usuario de Roblox, Discord o correo (si todavía no la dio). 3) Con el caso y el contacto, despídete diciendo que el equipo le responderá pronto.
+Reglas: no prometas plazos ni arreglos. Nunca pidas contraseñas, PIN, cookies ni códigos de seguridad. Si no quiere dar contacto, insiste una sola vez; si sigue sin querer, termina igual. Puedes sugerir lo básico (volver a ejecutar, actualizar el ejecutor) pero no inventes soluciones.
+Responde SOLO un objeto JSON con esta forma: {"say":"tu mensaje","fin":false,"contacto":"","resumen":""}. "fin" pasa a true solo cuando ya tienes el caso y el contacto (o se negó dos veces). "contacto" es el contacto que dio ("" si no). "resumen" es el caso en 1 a 3 líneas (solo cuando fin sea true).`;
+
+async function svVertix(c) {                                       // Vertix responde al chat
+  if (c.pensando) return; c.pensando = true;
+  try {
+    const hist = c.msgs.slice(-24).map((m) => ({ role: m.de === 'usuario' ? 'user' : 'assistant', content: m.t }));
+    const disp = VX_MODELOS.filter((m) => !m.mant);
+    const raw = await vxLLM([{ role: 'system', content: SV_PROMPT + (c.contacto ? `\nContacto ya dado: ${c.contacto}` : '') }, ...hist], { modelos: disp });
+    let o = null;
+    try { o = JSON.parse(String(raw).replace(/^\s*```(?:json)?|```\s*$/g, '').trim()); } catch { const m = /\{[\s\S]*\}/.exec(raw); if (m) { try { o = JSON.parse(m[0]); } catch {} } }
+    if (!o || typeof o.say !== 'string') o = { say: (vxParse(raw).say || '').toString(), fin: false };
+    const say = clean(o.say, 700) || 'Cuéntame qué pasó y con qué script.';
+    if (o.contacto && typeof o.contacto === 'string' && o.contacto.trim()) c.contacto = clean(o.contacto, 100);
+    svPush(c, 'vertix', say);
+    if (o.fin === true && c.msgs.some((m) => m.de === 'usuario')) { c.resumen = clean(o.resumen, 600); await svCerrar(c, 'Vertix terminó de tomar el caso'); }
+  } catch (e) {
+    console.error('[soporte-vivo] vertix:', e.message);
+    svPush(c, 'vertix', 'Tuve un problema para responder. Déjame tu usuario de Roblox o Discord y el equipo te escribirá.');
+  } finally { c.pensando = false; }
+}
+async function svEnviarTxt(c) {
+  if (!WEBHOOK_SOPORTE) return true;
+  const quien = [...new Set(c.msgs.map((m) => m.de))].filter((x) => x !== 'usuario').map((x) => x === 'admin' ? 'Equipo' : 'Vertix').join(' + ') || 'Nadie respondió';
+  const lineas = [`SOPORTE EN VIVO - ${SITE_NAME}`, `Fecha: ${new Date(c.creado).toISOString().slice(0, 16).replace('T', ' ')} UTC`, `Nombre: ${c.nombre}`, `Contacto: ${c.contacto || '(no lo dio)'}`, `Atendido por: ${quien}`, `Cierre: ${c.motivo || '-'}`, c.resumen ? `Resumen de Vertix: ${c.resumen}` : '', '', '------------------------------------------']
+    .concat(c.msgs.map((m) => `[${SV_HORA(m.ts)}] ${m.de === 'usuario' ? c.nombre : m.de === 'admin' ? 'Equipo' : 'Vertix'}: ${m.t.replace(/\n/g, ' ')}`)).filter((x, i) => x !== '' || i > 0);
+  const fd = new FormData();
+  fd.append('payload_json', JSON.stringify({ username: SITE_NAME + ' | Soporte en vivo', allowed_mentions: { parse: [] }, embeds: [{ title: 'Soporte en vivo: conversación cerrada', color: 0x8e94a3, fields: [
+    { name: 'Nombre', value: esc(c.nombre) || '-', inline: true }, { name: 'Contacto', value: esc(c.contacto || 'No lo dio'), inline: true }, { name: 'Atendió', value: quien, inline: true }].concat(c.resumen ? [{ name: 'Resumen', value: esc(c.resumen).slice(0, 900) }] : []), timestamp: new Date().toISOString() }] }));
+  fd.append('files[0]', new Blob([lineas.join('\n')], { type: 'text/plain' }), 'soporte-' + c.id + '.txt');
+  const r = await fetch(WEBHOOK_SOPORTE, { method: 'POST', body: fd });
+  if (!r.ok) throw new Error('webhook ' + r.status);
+  return true;
+}
+async function svCerrar(c, motivo) {
+  if (c.estado === 'cerrado') return;
+  c.estado = 'cerrado'; c.motivo = motivo; c.cierre = Date.now();
+  if (!c.msgs.some((m) => m.de === 'usuario')) { c.enviado = true; svMarcar(); return; }       // nunca escribió: no se manda nada
+  try { await svEnviarTxt(c); c.enviado = true; } catch (e) { c.enviado = false; c.intentos = (c.intentos || 0) + 1; console.error('[soporte-vivo] enviar txt:', e.message); }
+  svMarcar();
+}
+setInterval(async () => {
+  const n = Date.now();
+  for (const [t, c] of SV) {
+    if (c.estado === 'abierto') {
+      if (c.modo === 'humano' && c.espera && n - c.espera > 90e3) {                        // nadie respondió: toma Vertix
+        c.modo = 'vertix'; c.espera = null;
+        svPush(c, 'vertix', 'Parece que nadie del equipo está disponible ahora. Soy Vertix y voy a tomar tu caso para que te respondan después.');
+        svVertix(c);
+      } else if (n - c.ult > 20 * 60e3) await svCerrar(c, 'Se cerró por inactividad');
+    } else if (c.estado === 'cerrado') {
+      if (!c.enviado && (c.intentos || 0) < 5) { try { await svEnviarTxt(c); c.enviado = true; svMarcar(); } catch { c.intentos = (c.intentos || 0) + 1; } }
+      else if (n - c.cierre > 15 * 60e3 && (c.enviado || c.intentos >= 5)) { SV.delete(t); svMarcar(); }
+    }
+  }
+}, 15e3).unref();
+
+const svDe = (req) => { const t = clean(req.query.token || (req.body && req.body.token), 60); return /^[A-Za-z0-9_-]{20,60}$/.test(t) ? SV.get(t) : null; };
+app.get('/api/soporte/vivo/estado', async (req, res) => { noStore(res); await svCargada; res.json({ disponible: svDisponible() }); });
+app.post('/api/soporte/vivo/iniciar', needJson, async (req, res) => {
+  noStore(res); await svCargada;
+  if (limited('sv:' + ip(req), 6, 3600e3)) return res.status(429).json({ error: 'Demasiados chats seguidos. Intenta más tarde.' });
+  if (SV.size > 300) return res.status(503).json({ error: 'Soporte en vivo está lleno ahora. Usa el formulario de abajo.' });
+  const b = req.body || {};
+  const token = crypto.randomBytes(18).toString('base64url');
+  const c = { token, id: crypto.randomBytes(4).toString('hex'), nombre: clean(b.nombre, 40) || 'Visitante', contacto: clean(b.contacto, 100), modo: svDisponible() ? 'humano' : 'vertix', estado: 'abierto', creado: Date.now(), ult: Date.now(), msgs: [], sinLeer: 0, espera: null };
+  svPush(c, c.modo === 'humano' ? 'sistema' : 'vertix', c.modo === 'humano' ? 'Conectado con el equipo de soporte. Escribe tu mensaje y te responderán en breve.' : 'Hola, soy Vertix. Ahora no hay nadie del equipo conectado, así que te ayudo a dejar tu caso para que te respondan después. ¿Qué te pasó?');
+  SV.set(token, c);
+  res.json({ ok: true, token, modo: c.modo });
+});
+app.post('/api/soporte/vivo/enviar', needJson, async (req, res) => {
+  noStore(res);
+  const c = svDe(req); if (!c) return res.status(404).json({ error: 'El chat ya no existe.' });
+  if (c.estado !== 'abierto') return res.status(400).json({ error: 'El chat ya terminó.' });
+  if (limited('svm:' + c.token, 20, 60e3) || limited('svi:' + ip(req), 80, 600e3)) return res.status(429).json({ error: 'Vas muy rápido, espera un momento.' });
+  const t = clean(req.body && req.body.texto, 800); if (!t) return res.status(400).json({ error: 'Escribe un mensaje.' });
+  if (c.msgs.length >= 80) { await svCerrar(c, 'Límite de mensajes'); return res.json(svVista(c, req.body.desde)); }
+  svPush(c, 'usuario', t);
+  if (c.modo === 'humano') { c.sinLeer = (c.sinLeer || 0) + 1; if (!c.espera) c.espera = Date.now(); }
+  else await svVertix(c);
+  res.json(svVista(c, req.body.desde));
+});
+app.get('/api/soporte/vivo/mensajes', (req, res) => {
+  noStore(res);
+  if (limited('svp:' + ip(req), 90, 60e3)) return res.status(429).json({ error: 'Demasiadas consultas.' });
+  const c = svDe(req); if (!c) return res.status(404).json({ error: 'El chat ya no existe.' });
+  res.json(svVista(c, req.query.desde));
+});
+app.post('/api/soporte/vivo/cerrar', needJson, async (req, res) => {
+  noStore(res);
+  const c = svDe(req); if (!c) return res.json({ ok: true });
+  await svCerrar(c, 'La persona terminó el chat'); res.json({ ok: true });
+});
+// ---- lado admin ----
+app.get('/api/admin/soporte/estado', adminOnly, async (req, res) => { await svCargada; svVisto = Date.now(); res.json({ activo: svActivo, disponible: svDisponible() }); });
+app.post('/api/admin/soporte/activo', adminOnly, async (req, res) => { await svCargada; svActivo = !!(req.body && req.body.valor); svVisto = Date.now(); svMarcar(); res.json({ activo: svActivo, disponible: svDisponible() }); });
+app.get('/api/admin/soporte/chats', adminOnly, async (req, res) => {
+  await svCargada; svVisto = Date.now();
+  const l = [...SV.values()].filter((c) => c.estado === 'abierto').sort((a, b) => b.ult - a.ult).map((c) => ({ id: c.id, nombre: c.nombre, contacto: c.contacto, modo: c.modo, ult: c.ult, sinLeer: c.sinLeer || 0, ultimo: (c.msgs[c.msgs.length - 1] || {}).t || '' }));
+  res.json({ activo: svActivo, disponible: svDisponible(), chats: l });
+});
+const svPorId = (id) => [...SV.values()].find((c) => c.id === String(id));
+app.get('/api/admin/soporte/chat', adminOnly, (req, res) => {
+  const c = svPorId(req.query.id); if (!c) return res.status(404).json({ error: 'Ese chat ya no existe.' });
+  c.sinLeer = 0; res.json(Object.assign(svVista(c, req.query.desde), { nombre: c.nombre, contacto: c.contacto }));
+});
+app.post('/api/admin/soporte/responder', adminOnly, (req, res) => {
+  const c = svPorId(req.body && req.body.id); if (!c || c.estado !== 'abierto') return res.status(404).json({ error: 'Ese chat ya terminó.' });
+  const t = clean(req.body.texto, 800); if (!t) return res.status(400).json({ error: 'Escribe un mensaje.' });
+  c.modo = 'humano'; c.espera = null; c.sinLeer = 0; svPush(c, 'admin', t);
+  res.json(svVista(c, req.body.desde));
+});
+app.post('/api/admin/soporte/cerrar', adminOnly, async (req, res) => {
+  const c = svPorId(req.body && req.body.id); if (c) await svCerrar(c, 'Lo cerró el equipo');
+  res.json({ ok: true });
+});
+
 app.use('/api', (req, res) => res.status(404).json({ error: 'No encontrado' }));
 app.use((err, req, res, next) => { if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Demasiado grande' }); if (err instanceof SyntaxError) return res.status(400).json({ error: 'JSON inválido' }); console.error(err); res.status(500).json({ error: 'Error interno' }); });
 
@@ -1155,81 +1294,4 @@ async function dcPerfil(nombre) {                                  // devuelve {
   const k = (x) => '`' + String(x).replace(/`/g, "'") + '`';
   const bio = u && u.description ? String(u.description).replace(/\s+/g, ' ').slice(0, 200) : '';
   const L = [`**Nombre:** ${k((u && u.name) || u0.name)}`, `**Nombre visible:** ${k((u && u.displayName) || u0.name)}`, `**ID:** ${k(id)}`, `**Descripción:** ${bio ? k(bio) : '`Sin descripción`'}`, '',
-    `**Verificado:** ${verif === null ? 'No disponible' : verif ? 'Sí' : 'No'}`, `**Baneado del hub:** ${baneHub === null ? 'No disponible' : baneHub ? 'Sí' : 'No'}`, `**Cuenta de Roblox:** ${baneado ? 'Baneada' : 'Activa'}`,
-    `**Inventario:** ${inv && typeof inv.canView === 'boolean' ? (inv.canView ? `[Público](https://www.roblox.com/users/${id}/inventory)` : 'Privado') : 'No disponible'}`,
-    `**Amigos:** ${f(am)}  |  **Seguidores:** ${f(se)}  |  **Siguiendo:** ${f(sg)}`];
-  if (u && u.created) L.push(`**Creada:** <t:${ts(u.created)}:D> (<t:${ts(u.created)}:R>)`);
-  const emb = { title: `Información de ${(u && u.name) || u0.name}`, url: 'https://www.roblox.com/users/' + id + '/profile', color: (baneado || baneHub) ? 0xed4245 : verif ? 0x57f287 : 0x5865f2,
-    description: L.join('\n'), footer: { text: 'Vertix | Uzivert Hub' } };
-  const fa = dato(hd) || dato(av); if (fa) emb.thumbnail = { url: fa };
-  return { embeds: [emb] };
-}
-async function dcComando(msg, botId, cmd, resto) {                 // devuelve true si lo manejó
-  const c = cmd.toLowerCase(), esPerfil = /^(user|usuario|perfil)$/.test(c);
-  const enviar = (cuerpo) => dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }, typeof cuerpo === 'string' ? { content: cuerpo } : cuerpo));
-  try {
-    if (esPerfil) { dcApi('POST', `/channels/${msg.channel_id}/typing`).catch(() => {}); await enviar(await dcPerfil(resto)); return true; }
-    if (!msg.guild_id) { await enviar('Ese comando solo funciona dentro de un servidor.'); return true; }
-    if (!(await dcEsAdmin(msg))) { await enviar('No tienes permiso para eso.'); return true; }
-    if (/^(lock|bloquear)$/.test(c)) await dcLock(msg, true);
-    else if (/^(unlock|desbloquear)$/.test(c)) await dcLock(msg, false);
-    else await enviar(await dcBan(msg, botId, resto, /^(unban|desbanear)$/.test(c)));
-  } catch (e) {
-    console.error('[discord] comando', c, e.message);
-    const perm = /\b(403|50013|50001)\b/.test(e.message);
-    await enviar(perm ? 'No tengo permisos para hacer eso. Revisa que mi rol esté por encima y tenga Banear miembros y Gestionar roles/canales.' : 'No pude completarlo.').catch(() => {});
-  }
-  return true;
-}
-const DC_AYUDA = { embeds: [{ title: 'Comandos de Vertix', color: 0x5865f2, description:
-  'Escribe **Vertix** seguido de lo que necesites.\n\n`Vertix <pregunta>`  Pregúntame lo que quieras sobre Uzivert Hub o lo que sea.\n`Vertix user <usuario Roblox>`  Muestra el perfil: verificación en la página, inventario, amigos y más.\n`Vertix comandos`  Muestra esta lista.\n\n**Solo admins**\n`Vertix lock`  Bloquea el canal.\n`Vertix unlock`  Lo desbloquea.\n`Vertix ban <@usuario o ID>`  Banea del servidor.\n`Vertix unban <ID>`  Quita el baneo.', footer: { text: 'Vertix | Uzivert Hub' } }] };
-async function dcMensaje(msg, botId) {
-  if (!msg || !msg.author || msg.author.bot || !msg.content && !(msg.attachments || []).length) return;
-  if (DC_CANALES.length && !DC_CANALES.includes(String(msg.channel_id))) return;
-  const texto = dcTextoDe(msg, botId);
-  if (texto === null) return;
-  if (dcAyudaRe.test(texto.trim()) && !(msg.attachments || []).length) { await dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }, DC_AYUDA)); return; }
-  const mc = dcCmdRe.exec(texto.trim());
-  if (mc && !(msg.attachments || []).length && await dcComando(msg, botId, mc[1], mc[2].trim())) return;
-  const dm = !msg.guild_id;
-  let resp;
-  if (!texto && !(msg.attachments || []).length) resp = 'Dime qué necesitas. Ejemplo: Vertix qué es Uzivert Hub';
-  else { dcApi('POST', `/channels/${msg.channel_id}/typing`).catch(() => {}); resp = await dcResponder(msg, texto || 'Describe esta imagen y dime qué ves.'); }
-  resp = String(resp || '').trim() || 'No te entendí.';
-  const trozos = []; while (resp.length > 1900) { let c = resp.lastIndexOf('\n', 1900); if (c < 800) c = 1900; trozos.push(resp.slice(0, c)); resp = resp.slice(c).trimStart(); } trozos.push(resp);
-  for (let i = 0; i < Math.min(trozos.length, 4); i++) await dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ content: trozos[i], allowed_mentions: { parse: [] } }, i === 0 && !dm ? { message_reference: { message_id: msg.id, fail_if_not_exists: false } } : {}));
-}
-function dcIniciar() {
-  if (!DC_TOKEN) return;
-  if (typeof WebSocket !== 'function') { console.error('[bot] Este Node no tiene WebSocket (usa Node 22 o más nuevo).'); return; }
-  let ws, seq = null, sesion = '', urlRes = '', hb = null, botId = '', vivo = true, reintentos = 0;
-  const conectar = (resumir) => {
-    try { ws = new WebSocket((resumir && urlRes) || 'wss://gateway.discord.gg/?v=10&encoding=json'); } catch (e) { console.error('[bot] ws:', e.message); return setTimeout(() => conectar(false), 15000); }
-    const enviar = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
-    ws.onmessage = (ev) => {
-      let p; try { p = JSON.parse(ev.data); } catch { return; }
-      if (p.s != null) seq = p.s;
-      if (p.op === 10) {
-        vivo = true; clearInterval(hb);
-        hb = setInterval(() => { if (!vivo) { try { ws.close(4000); } catch {} return; } vivo = false; enviar({ op: 1, d: seq }); }, p.d.heartbeat_interval);
-        if (resumir && sesion) enviar({ op: 6, d: { token: DC_TOKEN, session_id: sesion, seq } });
-        else enviar({ op: 2, d: { token: DC_TOKEN, intents: (1 << 0) | (1 << 9) | (1 << 12) | (1 << 15), properties: { os: 'linux', browser: 'uzivert', device: 'uzivert' }, presence: { status: 'online', activities: [{ name: 'Vertix | Uzivert Hub', type: 0 }], afk: false } } });
-      } else if (p.op === 11) { vivo = true; }
-      else if (p.op === 1) { enviar({ op: 1, d: seq }); }
-      else if (p.op === 7) { try { ws.close(4000); } catch {} }
-      else if (p.op === 9) { sesion = ''; seq = null; setTimeout(() => { try { ws.close(4000); } catch {} }, 2000); }
-      else if (p.op === 0) {
-        if (p.t === 'READY') { sesion = p.d.session_id; urlRes = p.d.resume_gateway_url ? p.d.resume_gateway_url + '/?v=10&encoding=json' : ''; botId = p.d.user.id; reintentos = 0; console.log('[bot] Vertix conectado como', p.d.user.username); }
-        else if (p.t === 'MESSAGE_CREATE') dcMensaje(p.d, botId).catch((e) => console.error('[bot] mensaje:', e.message));
-      }
-    };
-    ws.onclose = (ev) => {
-      clearInterval(hb);
-      if ([4004, 4010, 4011, 4012, 4013, 4014].includes(ev.code)) { console.error('[bot] Discord rechazó la conexión (código ' + ev.code + '). Revisa el token y los intents.'); return; }
-      reintentos++; setTimeout(() => conectar(!!sesion && ev.code !== 4007 && ev.code !== 4009), Math.min(30000, 2000 * reintentos));
-    };
-    ws.onerror = () => {};
-  };
-  conectar(false);
-}
-if (require.main === module) { app.listen(PORT, () => console.log(`${SITE_NAME} web en puerto ${PORT}`)); dcIniciar(); }
+    `**Verificado:** ${verif === null ? 'No
