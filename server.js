@@ -1075,6 +1075,7 @@ async function dcResponder(msg, texto) {
 // ---- Comandos de moderación y perfiles (solo admins): Vertix lock / unlock / ban / unban / user <Roblox>
 const DC_ADMINS = (env.VERTIX_ADMINS || '').split(',').map((x) => x.trim()).filter(Boolean);
 const DC_SEND = (1n << 11n) | (1n << 38n);                         // SEND_MESSAGES | SEND_MESSAGES_IN_THREADS
+const dcAyudaRe = /^(comandos|ayuda|help|(dime|dame|muestra|cuales|cuáles|qué|que)\b.{0,25}\bcomandos)\b/i;
 const dcCmdRe = /^(lock|bloquear|unlock|desbloquear|ban|banear|unban|desbanear|user|usuario|perfil)\b\s*(.*)$/is;
 async function dcEsAdmin(msg) {
   const id = String(msg.author.id);
@@ -1118,6 +1119,23 @@ async function dcRbx(ruta, base, cuerpo) {
   const r = await fetch(base + ruta, cuerpo ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) } : undefined);
   if (!r.ok) throw new Error('roblox ' + r.status); return r.json();
 }
+async function dcHubLista(ruta) {                                  // lista de la base del hub (API); null si no se pudo consultar
+  try {
+    let d = await apiAdmin(ruta);
+    if (d && !Array.isArray(d)) d = d.data || d.lista || d.verificados || d.baneados || d.items || d.rows || Object.values(d).find(Array.isArray) || [];
+    if (d && d.length && !dcHubLista.v) { dcHubLista.v = 1; console.log('[discord] forma de ' + ruta + ':', Object.keys(d[0] || {}).join(',')); }
+    return Array.isArray(d) ? d : null;
+  } catch (e) { console.error('[discord] hub ' + ruta + ':', e.message); return null; }
+}
+function dcEnLista(lista, id, nombre) {
+  if (!lista) return null;
+  const n = String(nombre).toLowerCase();
+  return lista.some((x) => {
+    if (typeof x !== 'object' || !x) return String(x) === String(id) || String(x).toLowerCase() === n;
+    return ['roblox_id', 'robloxId', 'roblox_user_id', 'user_id', 'userId', 'id'].some((k) => x[k] != null && String(x[k]) === String(id))
+      || ['roblox_user', 'roblox_name', 'robloxUser', 'username', 'user', 'name'].some((k) => typeof x[k] === 'string' && x[k].toLowerCase() === n);
+  });
+}
 async function dcPerfil(nombre) {                                  // devuelve {embeds:[...]} o texto de error
   nombre = String(nombre || '').trim().replace(/^@/, '');
   if (!/^[A-Za-z0-9_]{3,20}$/.test(nombre)) return 'Escribe un usuario de Roblox válido. Ejemplo: Vertix user Builderman';
@@ -1125,26 +1143,25 @@ async function dcPerfil(nombre) {                                  // devuelve {
   const b = await dcRbx('/v1/usernames/users', U, { usernames: [nombre], excludeBannedUsers: false }).catch(() => null);
   const u0 = b && b.data && b.data[0]; if (!u0) return 'No encontré ese usuario en Roblox.';
   const id = u0.id, ok = (p) => p.catch(() => null);
-  const [u, am, se, sg, av, hd, inv, ver] = await Promise.all([
+  const [u, am, se, sg, av, hd, inv, ver, ban] = await Promise.all([
     ok(dcRbx('/v1/users/' + id, U)), ok(dcRbx(`/v1/users/${id}/friends/count`, F)), ok(dcRbx(`/v1/users/${id}/followers/count`, F)), ok(dcRbx(`/v1/users/${id}/followings/count`, F)),
     ok(dcRbx(`/v1/users/avatar?userIds=${id}&size=420x420&format=Png&isCircular=false`, T)), ok(dcRbx(`/v1/users/avatar-headshot?userIds=${id}&size=150x150&format=Png&isCircular=false`, T)),
-    ok(dcRbx(`/v1/users/${id}/can-view-inventory`, I)), ok(loadVerified())]);
+    ok(dcRbx(`/v1/users/${id}/can-view-inventory`, I)), dcHubLista('/admin/verificados'), dcHubLista('/admin/baneados')]);
   const dato = (x) => x && x.data && x.data[0] && x.data[0].imageUrl;
-  const verif = (ver || []).find((v) => String(v.id) === String(id));
+  const nm = (u && u.name) || u0.name, verif = dcEnLista(ver, id, nm), baneHub = dcEnLista(ban, id, nm);
   const baneado = u && u.isBanned;
   const f = (n) => (n && typeof n.count === 'number') ? n.count.toLocaleString('es') : '-';
   const ts = (iso) => iso ? Math.floor(new Date(iso).getTime() / 1000) : null;
-  const campos = [
-    { name: 'Hub', value: verif ? 'Verificado' : 'No verificado', inline: true },
-    { name: 'Cuenta', value: baneado ? 'Baneada en Roblox' : 'Activa', inline: true },
-    { name: 'Inventario', value: inv && typeof inv.canView === 'boolean' ? (inv.canView ? `[Público](https://www.roblox.com/users/${id}/inventory)` : 'Privado') : 'No disponible', inline: true },
-    { name: 'Amigos', value: f(am), inline: true }, { name: 'Seguidores', value: f(se), inline: true }, { name: 'Siguiendo', value: f(sg), inline: true }];
-  if (u && u.created) campos.push({ name: 'Creada', value: `<t:${ts(u.created)}:D> (<t:${ts(u.created)}:R>)`, inline: false });
-  if (verif && verif.fecha) campos.push({ name: 'Verificado el', value: `<t:${ts(verif.fecha)}:D>`, inline: false });
-  const bio = u && u.description ? String(u.description).replace(/```/g, '').slice(0, 300) : '';
-  const emb = { title: (u && u.displayName) || u0.name, url: 'https://www.roblox.com/users/' + id + '/profile', color: baneado ? 0xed4245 : verif ? 0x57f287 : 0x5865f2,
-    description: `@${(u && u.name) || u0.name}  |  ID ${id}` + (bio ? '\n\n' + bio : ''), fields: campos, footer: { text: 'Vertix | Uzivert Hub' }, timestamp: new Date().toISOString() };
-  if (dato(hd)) emb.thumbnail = { url: dato(hd) }; if (dato(av)) emb.image = { url: dato(av) };
+  const k = (x) => '`' + String(x).replace(/`/g, "'") + '`';
+  const bio = u && u.description ? String(u.description).replace(/\s+/g, ' ').slice(0, 200) : '';
+  const L = [`**Nombre:** ${k((u && u.name) || u0.name)}`, `**Nombre visible:** ${k((u && u.displayName) || u0.name)}`, `**ID:** ${k(id)}`, `**Descripción:** ${bio ? k(bio) : '`Sin descripción`'}`, '',
+    `**Verificado:** ${verif === null ? 'No disponible' : verif ? 'Sí' : 'No'}`, `**Baneado del hub:** ${baneHub === null ? 'No disponible' : baneHub ? 'Sí' : 'No'}`, `**Cuenta de Roblox:** ${baneado ? 'Baneada' : 'Activa'}`,
+    `**Inventario:** ${inv && typeof inv.canView === 'boolean' ? (inv.canView ? `[Público](https://www.roblox.com/users/${id}/inventory)` : 'Privado') : 'No disponible'}`,
+    `**Amigos:** ${f(am)}  |  **Seguidores:** ${f(se)}  |  **Siguiendo:** ${f(sg)}`];
+  if (u && u.created) L.push(`**Creada:** <t:${ts(u.created)}:D> (<t:${ts(u.created)}:R>)`);
+  const emb = { title: `Información de ${(u && u.name) || u0.name}`, url: 'https://www.roblox.com/users/' + id + '/profile', color: (baneado || baneHub) ? 0xed4245 : verif ? 0x57f287 : 0x5865f2,
+    description: L.join('\n'), footer: { text: 'Vertix | Uzivert Hub' } };
+  const fa = dato(hd) || dato(av); if (fa) emb.thumbnail = { url: fa };
   return { embeds: [emb] };
 }
 async function dcComando(msg, botId, cmd, resto) {                 // devuelve true si lo manejó
@@ -1164,11 +1181,14 @@ async function dcComando(msg, botId, cmd, resto) {                 // devuelve t
   }
   return true;
 }
+const DC_AYUDA = { embeds: [{ title: 'Comandos de Vertix', color: 0x5865f2, description:
+  'Escribe **Vertix** seguido de lo que necesites.\n\n`Vertix <pregunta>`  Pregúntame lo que quieras sobre Uzivert Hub o lo que sea.\n`Vertix user <usuario Roblox>`  Muestra el perfil: verificación en la página, inventario, amigos y más.\n`Vertix comandos`  Muestra esta lista.\n\n**Solo admins**\n`Vertix lock`  Bloquea el canal.\n`Vertix unlock`  Lo desbloquea.\n`Vertix ban <@usuario o ID>`  Banea del servidor.\n`Vertix unban <ID>`  Quita el baneo.', footer: { text: 'Vertix | Uzivert Hub' } }] };
 async function dcMensaje(msg, botId) {
   if (!msg || !msg.author || msg.author.bot || !msg.content && !(msg.attachments || []).length) return;
   if (DC_CANALES.length && !DC_CANALES.includes(String(msg.channel_id))) return;
   const texto = dcTextoDe(msg, botId);
   if (texto === null) return;
+  if (dcAyudaRe.test(texto.trim()) && !(msg.attachments || []).length) { await dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }, DC_AYUDA)); return; }
   const mc = dcCmdRe.exec(texto.trim());
   if (mc && !(msg.attachments || []).length && await dcComando(msg, botId, mc[1], mc[2].trim())) return;
   const dm = !msg.guild_id;
