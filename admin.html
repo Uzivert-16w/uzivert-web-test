@@ -31,6 +31,15 @@
       <div id="e-link" class="hide"><label>Loadstring</label><pre class="ls" id="e-ls"></pre><div class="row" style="margin-top:8px"><button class="ghost" id="e-copy">Copiar loadstring</button></div></div>
       <div class="row"><button id="e-save">Guardar</button><button class="ghost" id="e-cancel">Cerrar</button></div><div class="msg" id="em"></div>
     </div>
+    <div class="card"><h3>Soporte en vivo</h3>
+      <p>Activa tu disponibilidad y responde aquí mientras tengas esta página abierta. Si no respondes en 90 segundos, Vertix toma el chat.</p>
+      <div class="row" style="margin-top:10px"><button id="sv-tog" class="ghost">Cargando...</button></div>
+      <div class="sv-lista" id="sv-lista"></div>
+      <div id="sv-box" class="hide"><b id="sv-quien"></b><div class="sv-log" id="sv-log"></div>
+        <form class="sv-form" id="sv-form" autocomplete="off"><input id="sv-in" maxlength="800" placeholder="Responder..."><button type="submit">Enviar</button></form>
+        <div class="row" style="margin-top:10px"><button class="danger" id="sv-close" type="button">Cerrar chat</button></div></div>
+      <div class="msg" id="sv-m"></div>
+    </div>
     <div class="card"><h3>Publicar actualización</h3>
       <p>Se publica en Discord (con el webhook de tu API) y también en la pestaña Updates de la página.</p>
       <label for="u-t">Título</label><input id="u-t" maxlength="100" placeholder="Ej: Update v4.8">
