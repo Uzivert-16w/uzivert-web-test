@@ -1133,7 +1133,7 @@ function dcEnLista(lista, id, nombre) {
   return lista.some((x) => {
     if (typeof x !== 'object' || !x) return String(x) === String(id) || String(x).toLowerCase() === n;
     return ['roblox_id', 'robloxId', 'roblox_user_id', 'user_id', 'userId', 'id'].some((k) => x[k] != null && String(x[k]) === String(id))
-      || ['roblox_user', 'roblox_name', 'robloxUser', 'username', 'user', 'name'].some((k) => typeof x[k] === 'string' && x[k].toLowerCase() === n);
+      || ['roblox_user', 'nombre', 'roblox_name', 'robloxUser', 'username', 'user', 'name'].some((k) => typeof x[k] === 'string' && x[k].toLowerCase() === n);
   });
 }
 async function dcPerfil(nombre) {                                  // devuelve {embeds:[...]} o texto de error
