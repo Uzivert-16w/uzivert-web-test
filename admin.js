@@ -92,3 +92,44 @@ $('u-ver').onclick = async () => {
   catch (e) { p.textContent = e.message; }
 };
 boot();
+
+// ---- soporte en vivo ----
+(function () {
+  let sel = '', desde = 0, activo = false;
+  const log = $('sv-log');
+  function pinta(m) {
+    const d = document.createElement('div'); d.className = 'sv-m ' + (m.de === 'admin' ? 'u' : m.de === 'usuario' ? 'a' : m.de === 'vertix' ? 'v' : 's');
+    if (m.de === 'usuario' || m.de === 'vertix') { const b = document.createElement('b'); b.textContent = m.de === 'vertix' ? 'Vertix' : 'Persona'; d.append(b); }
+    const t = document.createElement('span'); t.textContent = m.t; d.append(t); log.append(d);
+  }
+  function tog(a, disp) { activo = a; $('sv-tog').textContent = a ? (disp ? 'Disponible: SÍ (toca para desactivar)' : 'Activado (esperando esta página)') : 'Disponible: NO (toca para activar)'; }
+  async function lista() {
+    if (document.hidden || $('panel').classList.contains('hide')) return;
+    try {
+      const r = await api('/api/admin/soporte/chats'); tog(r.activo, r.disponible);
+      const box = $('sv-lista'); box.textContent = '';
+      if (!r.chats.length) { const p = document.createElement('p'); p.textContent = 'No hay chats abiertos.'; box.append(p); }
+      r.chats.forEach((c) => {
+        const d = document.createElement('div'); d.className = 'sv-it' + (c.id === sel ? ' on' : '');
+        if (c.sinLeer) { const n = document.createElement('span'); n.className = 'n'; n.textContent = c.sinLeer; d.append(n); }
+        const b = document.createElement('b'); b.textContent = c.nombre + (c.modo === 'vertix' ? ' (Vertix)' : ''); const s = document.createElement('small'); s.textContent = (c.contacto ? c.contacto + ' | ' : '') + c.ultimo;
+        d.append(b, s); d.onclick = () => abre(c.id, c.nombre, c.contacto); box.append(d);
+      });
+      if (sel && !r.chats.some((c) => c.id === sel)) { sel = ''; $('sv-box').classList.add('hide'); }
+      if (sel) await trae();
+    } catch {}
+  }
+  async function trae() {
+    try { const r = await api('/api/admin/soporte/chat?id=' + sel + '&desde=' + desde); r.msgs.forEach((m) => { pinta(m); desde = Math.max(desde, m.n); }); if (r.msgs.length) log.scrollTop = log.scrollHeight; $('sv-quien').textContent = r.nombre + (r.contacto ? ' | ' + r.contacto : '') + ' | ' + (r.modo === 'vertix' ? 'atiende Vertix' : 'atiendes tú'); }
+    catch (e) { if (e.status === 404) { sel = ''; $('sv-box').classList.add('hide'); } }
+  }
+  function abre(id) { sel = id; desde = 0; log.textContent = ''; $('sv-box').classList.remove('hide'); trae(); }
+  $('sv-tog').addEventListener('click', async () => { try { const r = await api('/api/admin/soporte/activo', { method: 'POST', body: { valor: !activo } }); tog(r.activo, r.disponible); } catch (e) { show($('sv-m'), e.message, false); } });
+  $('sv-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const t = $('sv-in').value.trim(); if (!t || !sel) return; $('sv-in').value = '';
+    try { const r = await api('/api/admin/soporte/responder', { method: 'POST', body: { id: sel, texto: t, desde } }); r.msgs.forEach((m) => { pinta(m); desde = Math.max(desde, m.n); }); log.scrollTop = log.scrollHeight; }
+    catch (err) { show($('sv-m'), err.message, false); }
+  });
+  $('sv-close').addEventListener('click', async () => { if (!sel) return; try { await api('/api/admin/soporte/cerrar', { method: 'POST', body: { id: sel } }); } catch {} sel = ''; $('sv-box').classList.add('hide'); lista(); });
+  setInterval(lista, 4000); setTimeout(lista, 800);
+})();
