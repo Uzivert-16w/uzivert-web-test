@@ -4,6 +4,15 @@ const crypto = require('crypto');
 const path = require('path');
 const { localStore, githubStore } = require('./store');
 
+// ---- registro de consola (lo muestra el panel admin; se ocultan claves y webhooks) ----
+const LOGS = []; let logN = 0;
+const ocultar = (t) => String(t).replace(/(Bearer\s+)\S+/gi, '$1[oculto]').replace(/((?:key|token|pass|password|secret|clave|authorization)["']?\s*[:=]\s*["']?)[^\s"',}&]+/gi, '$1[oculto]')
+  .replace(/\b(?:nvapi-|gsk_|sk-|AQ\.|ghp_|github_pat_)[A-Za-z0-9_\-.]{8,}/g, '[oculto]').replace(/webhooks\/\d+\/[\w-]+/g, 'webhooks/[oculto]').replace(/[A-Za-z0-9_\-]{40,}/g, '[oculto]');
+for (const [nivel, fn] of [['info', 'log'], ['aviso', 'warn'], ['error', 'error']]) {
+  const orig = console[fn].bind(console);
+  console[fn] = (...a) => { try { LOGS.push({ n: ++logN, ts: Date.now(), nivel, t: ocultar(a.map((x) => typeof x === 'string' ? x : (x && x.stack) || JSON.stringify(x)).join(' ')).slice(0, 600) }); if (LOGS.length > 600) LOGS.shift(); } catch {} orig(...a); };
+}
+
 const env = process.env;
 const PORT = env.PORT || 3000;
 const SITE_NAME = env.SITE_NAME || 'Uzivert Hub';
@@ -586,7 +595,8 @@ app.post('/api/admin/login', needJson, (req, res) => {
   if (limited('adm:' + ip(req), 6, 15 * 60e3)) return res.status(429).json({ error: 'Demasiados intentos. Espera 15 minutos.' });
   const given = crypto.createHash('sha256').update(String(req.body && req.body.clave || '')).digest();
   const real = crypto.createHash('sha256').update(ADMIN_KEY).digest();
-  if (!crypto.timingSafeEqual(given, real)) return res.status(401).json({ error: 'Clave incorrecta.' });
+  if (!crypto.timingSafeEqual(given, real)) { audit(req, 'login fallido', ''); return res.status(401).json({ error: 'Clave incorrecta.' }); }
+  audit(req, 'login', '');
   setCookie(res, 'uz_admin', sign({ admin: true, exp: Date.now() + 12 * 3600e3 }), 12 * 3600);
   res.json({ ok: true });
 });
@@ -644,7 +654,7 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
     const list = (await loadIndex()).filter((s) => s.slug !== slug);
     list.push(meta); list.sort((a, c) => a.name.localeCompare(c.name));
     await saveIndex(list);
-    cache.delete(slug);
+    cache.delete(slug); audit(req, 'script: guardar', slug);
     res.json({ ok: true, script: meta, aviso });
   } catch (e) { console.error('guardar script:', e.message); res.status(500).json({ error: 'No se pudo guardar: ' + e.message }); }
 });
@@ -655,7 +665,7 @@ app.delete('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
     try { await store.remove(`logos/${req.params.slug}.txt`); } catch {}
     logoCache.delete(req.params.slug);
     await saveIndex((await loadIndex()).filter((s) => s.slug !== req.params.slug));
-    cache.delete(req.params.slug);
+    cache.delete(req.params.slug); audit(req, 'script: borrar', req.params.slug);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'No se pudo borrar.' }); }
 });
@@ -856,7 +866,7 @@ async function flushForo() {
   foroSucio = false;
   try { await store.write('foro.json', JSON.stringify(foro)); } catch (e) { foroSucio = true; console.error('guardar foro:', e.message); foroTimer = setTimeout(flushForo, 15000); }
 }
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, async () => { await flushForo(); await vxGuardar(); await svGuardar(); process.exit(0); });
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, async () => { await flushForo(); await vxGuardar(); await svGuardar(); await ejGuardar(); await audGuardar(); process.exit(0); });
 
 const RE_LINK = /(https?:\/\/|www\.|discord\.gg|\b[a-z0-9-]{2,}\.(com|net|org|gg|io|ly|xyz|me|co|app|tk|ru|link|gl|cc|to|site|online|ml|ga|cf)\b)/i;
 const nuevoId = () => crypto.randomBytes(5).toString('hex');
@@ -980,7 +990,7 @@ app.get('/s/:slug', async (req, res) => {
   if (razon) {
     res.status(403).setHeader('Cache-Control', 'no-store');
     if (razon !== 'bloqueado' && limited('seg:' + quien, 8, 10 * 60e3)) {   // 8 intentos en 10 min: bloqueo de 1 hora y aviso
-      segBloq.set(quien, Date.now() + 3600e3);
+      segBloq.set(quien, Date.now() + 3600e3); audit(req, 'IP bloqueada (auto)', quien + ' /s/' + clean(req.params.slug, 40));
       console.warn('[seguridad] IP bloqueada por insistir en /s/' + req.params.slug + ':', quien);
       postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien insistió en abrir un loader fuera de Roblox. Se bloqueó su IP por 1 hora.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: razon, inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }, { name: 'User-Agent', value: '`' + clean(req.headers['user-agent'], 150).replace(/`/g, "'") + '`' }], timestamp: new Date().toISOString() }] }).catch(() => {});
     }
@@ -993,6 +1003,7 @@ app.get('/s/:slug', async (req, res) => {
   try {
     const meta = (await loadIndex()).find((s) => s.slug === slug);
     if (!meta || meta.estado !== 'activo') return res.status(404).send('-- no encontrado');
+    if (!isAdmin(req)) contarEjec(slug, quien);
     const c = cache.get(slug);
     if (c && Date.now() - c.t < 30e3) return res.send(c.code);
     const code = await store.read(`scripts/${slug}.lua`);
@@ -1182,6 +1193,136 @@ app.post('/api/admin/soporte/responder', adminOnly, (req, res) => {
 app.post('/api/admin/soporte/cerrar', adminOnly, async (req, res) => {
   const c = svPorId(req.body && req.body.id); if (c) await svCerrar(c, 'Lo cerró el equipo');
   res.json({ ok: true });
+});
+
+// ---------- ADMIN: auditoría, ejecuciones, bóveda, seguridad y consola ----------
+const dia = (ts) => new Date((ts || Date.now()) - 3 * 3600e3).toISOString().slice(0, 10);     // día en hora de Paraguay
+// Auditoría: quién hizo qué en el panel (últimas 300 acciones)
+let AUD = [], audSucio = false, audTimer = null;
+const audCargada = (async () => { try { AUD = JSON.parse((await store.read('auditoria.json')) || '[]'); } catch {} })();
+function audit(req, accion, detalle) {
+  AUD.push({ ts: Date.now(), ip: req ? ip(req) : '-', accion, detalle: clean(detalle, 160) }); if (AUD.length > 300) AUD.shift();
+  audSucio = true; if (!audTimer) audTimer = setTimeout(audGuardar, 15e3);
+}
+async function audGuardar() { clearTimeout(audTimer); audTimer = null; if (!audSucio) return; audSucio = false; try { await store.write('auditoria.json', JSON.stringify(AUD)); } catch (e) { audSucio = true; console.error('auditoria:', e.message); } }
+
+// Contador de ejecuciones: cada vez que un ejecutor descarga un loader de la página (/s/slug) cuenta una ejecución
+let EJ = {}, ejSucio = false, ejTimer = null;
+const ejCargada = (async () => { try { EJ = JSON.parse((await store.read('ejecuciones.json')) || '{}'); } catch {} })();
+const ejRecientes = new Map();
+function contarEjec(slug, quien) {
+  const k = quien + '|' + slug, n = Date.now();
+  if (n - (ejRecientes.get(k) || 0) < 5e3) return; ejRecientes.set(k, n);
+  if (ejRecientes.size > 5000) for (const [x, t] of ejRecientes) if (n - t > 60e3) ejRecientes.delete(x);
+  const e = EJ[slug] || (EJ[slug] = { total: 0, dias: {}, ult: 0 });
+  e.total++; e.ult = n; const d = dia(n); e.dias[d] = (e.dias[d] || 0) + 1;
+  const ks = Object.keys(e.dias).sort(); while (ks.length > 60) delete e.dias[ks.shift()];
+  ejSucio = true; if (!ejTimer) ejTimer = setTimeout(ejGuardar, 20e3);
+}
+async function ejGuardar() { clearTimeout(ejTimer); ejTimer = null; if (!ejSucio) return; ejSucio = false; try { await store.write('ejecuciones.json', JSON.stringify(EJ)); } catch (e) { ejSucio = true; console.error('ejecuciones:', e.message); } }
+async function ejResumen() {
+  await ejCargada;
+  const idx = await loadIndex(), hoy = dia(), dias = [];
+  for (let i = 13; i >= 0; i--) { const d = dia(Date.now() - i * 864e5); dias.push({ d, n: Object.values(EJ).reduce((a, e) => a + (e.dias[d] || 0), 0) }); }
+  const sem = new Set(dias.slice(-7).map((x) => x.d));
+  const nombres = new Map(idx.map((s) => [s.slug, s.name]));
+  const scripts = Object.keys(EJ).concat(idx.map((s) => s.slug).filter((s) => !EJ[s])).filter((v, i, a) => a.indexOf(v) === i).map((slug) => { const e = EJ[slug] || { total: 0, dias: {}, ult: 0 }; return { slug, name: nombres.get(slug) || slug + ' (borrado)', total: e.total, hoy: e.dias[hoy] || 0, sem: Object.entries(e.dias).filter(([d]) => sem.has(d)).reduce((a, [, n]) => a + n, 0), ult: e.ult }; }).sort((a, b) => b.total - a.total);
+  return { scripts, dias, total: scripts.reduce((a, s) => a + s.total, 0), hoy: scripts.reduce((a, s) => a + s.hoy, 0) };
+}
+app.get('/api/admin/ejecuciones', adminOnly, async (req, res) => res.json(await ejResumen()));
+app.get('/api/admin/auditoria', adminOnly, async (req, res) => { await audCargada; res.json(AUD.slice().reverse().slice(0, 150)); });
+app.get('/api/admin/resumen', adminOnly, async (req, res) => {
+  const e = await ejResumen(); await svCargada;
+  res.json({ ejecHoy: e.hoy, ejecTotal: e.total, dias: e.dias, scripts: (await loadIndex()).length, chats: [...SV.values()].filter((c) => c.estado === 'abierto').length, soporte: svDisponible(), bloqueadas: segBloq.size, almacenamiento: store.kind, uptime: Math.round(process.uptime()), memoria: Math.round(process.memoryUsage().rss / 1048576) });
+});
+// IPs bloqueadas
+app.get('/api/admin/seguridad', adminOnly, (req, res) => res.json({ bloqueadas: [...segBloq].filter(([, h]) => h > Date.now()).map(([ip, hasta]) => ({ ip, hasta })) }));
+app.post('/api/admin/seguridad/bloquear', adminOnly, (req, res) => {
+  const x = clean(req.body && req.body.ip, 60), h = Math.min(Math.max(Number(req.body && req.body.horas) || 24, 1), 24 * 30);
+  if (!/^[0-9a-fA-F:.]{3,45}$/.test(x)) return res.status(400).json({ error: 'IP inválida.' });
+  segBloq.set(x, Date.now() + h * 3600e3); audit(req, 'bloquear IP', x + ' ' + h + 'h'); res.json({ ok: true });
+});
+app.post('/api/admin/seguridad/desbloquear', adminOnly, (req, res) => { const x = clean(req.body && req.body.ip, 60); segBloq.delete(x); audit(req, 'desbloquear IP', x); res.json({ ok: true }); });
+
+// ---- Bóveda: scripts completos, privados (nunca se sirven públicamente). Se cifran si defines BOVEDA_KEY ----
+const BOV_KEY = env.BOVEDA_KEY ? crypto.createHash('sha256').update(env.BOVEDA_KEY).digest() : null;
+const bovCifrar = (t) => { if (!BOV_KEY) return t; const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', BOV_KEY, iv); const e = Buffer.concat([c.update(t, 'utf8'), c.final()]); return 'enc:' + Buffer.concat([iv, c.getAuthTag(), e]).toString('base64'); };
+const bovDescifrar = (t) => { if (t == null) return null; t = String(t); if (!t.startsWith('enc:')) return t; if (!BOV_KEY) throw new Error('Este archivo está cifrado: falta BOVEDA_KEY.'); const b = Buffer.from(t.slice(4), 'base64'), d = crypto.createDecipheriv('aes-256-gcm', BOV_KEY, b.subarray(0, 12)); d.setAuthTag(b.subarray(12, 28)); return Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8'); };
+let bovCola = Promise.resolve();
+const bovSerial = (fn) => { const p = bovCola.then(fn, fn); bovCola = p.catch(() => {}); return p; };
+const bovIdx = async () => { try { return JSON.parse((await store.read('boveda/index.json')) || '[]'); } catch { return []; } };
+const bovSave = (l) => store.write('boveda/index.json', JSON.stringify(l));
+const BOV_ID = /^[a-f0-9]{12}$/;
+const bovMeta = (m) => ({ id: m.id, nombre: m.nombre, carpeta: m.carpeta || '', notas: m.notas || '', creado: m.creado, mod: m.mod, size: m.size, versiones: (m.vers || []).length, cifrado: !!m.cifrado });
+const bovCampos = (b) => ({ nombre: clean(b.nombre, 80), carpeta: clean(b.carpeta, 40), notas: clean(b.notas, 500), codigo: String(b.codigo == null ? '' : b.codigo) });
+app.get('/api/admin/boveda', adminOnly, async (req, res) => res.json({ cifrado: !!BOV_KEY, archivos: (await bovIdx()).map(bovMeta).sort((a, b) => (a.carpeta || '~').localeCompare(b.carpeta || '~') || a.nombre.localeCompare(b.nombre)) }));
+app.get('/api/admin/boveda/:id', adminOnly, async (req, res) => {
+  if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
+  const m = (await bovIdx()).find((x) => x.id === req.params.id); if (!m) return res.status(404).json({ error: 'No existe.' });
+  try { const codigo = bovDescifrar(await store.read(`boveda/${m.id}.lua`)); audit(req, 'bóveda: abrir', m.nombre); res.json(Object.assign(bovMeta(m), { codigo, vers: m.vers || [] })); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/boveda/:id/v/:v', adminOnly, async (req, res) => {
+  if (!BOV_ID.test(req.params.id) || !/^\d{1,6}$/.test(req.params.v)) return res.status(400).json({ error: 'Inválido' });
+  try { const t = await store.read(`boveda/${req.params.id}.v${req.params.v}.lua`); if (t == null) return res.status(404).json({ error: 'Esa versión ya no existe.' }); res.json({ codigo: bovDescifrar(t) }); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/boveda/:id/descargar', adminOnly, async (req, res) => {
+  if (!BOV_ID.test(req.params.id)) return res.status(400).end();
+  const m = (await bovIdx()).find((x) => x.id === req.params.id); if (!m) return res.status(404).end();
+  try { const t = bovDescifrar(await store.read(`boveda/${m.id}.lua`)); audit(req, 'bóveda: descargar', m.nombre); res.setHeader('Content-Type', 'text/plain; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="${m.nombre.replace(/[^\w.-]+/g, '_').slice(0, 60) || 'script'}.lua"`); res.send(t); } catch (e) { res.status(500).end(); }
+});
+app.post('/api/admin/boveda', adminOnly, (req, res) => bovSerial(async () => {
+  const c = bovCampos(req.body || {});
+  if (!c.nombre) return res.status(400).json({ error: 'Ponle un nombre.' });
+  if (!c.codigo.trim()) return res.status(400).json({ error: 'El script está vacío.' });
+  if (c.codigo.length > 1_200_000) return res.status(400).json({ error: 'Es demasiado grande (máx 1.2 MB).' });
+  const l = await bovIdx(); if (l.length >= 300) return res.status(400).json({ error: 'Llegaste al límite de 300 archivos.' });
+  const m = { id: crypto.randomBytes(6).toString('hex'), nombre: c.nombre, carpeta: c.carpeta, notas: c.notas, creado: Date.now(), mod: Date.now(), size: c.codigo.length, cifrado: !!BOV_KEY, vers: [], vn: 0 };
+  await store.write(`boveda/${m.id}.lua`, bovCifrar(c.codigo)); l.push(m); await bovSave(l); audit(req, 'bóveda: crear', m.nombre); res.json({ ok: true, id: m.id });
+}).catch((e) => res.status(500).json({ error: 'No se pudo guardar: ' + e.message })));
+app.put('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => {
+  if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
+  const l = await bovIdx(), m = l.find((x) => x.id === req.params.id); if (!m) return res.status(404).json({ error: 'No existe.' });
+  const c = bovCampos(req.body || {});
+  if (!c.nombre || !c.codigo.trim()) return res.status(400).json({ error: 'Faltan el nombre o el script.' });
+  if (c.codigo.length > 1_200_000) return res.status(400).json({ error: 'Es demasiado grande (máx 1.2 MB).' });
+  const actual = await store.read(`boveda/${m.id}.lua`);
+  if (actual != null && bovDescifrar(actual) !== c.codigo) {              // guarda la versión anterior (últimas 5)
+    m.vn = (m.vn || 0) + 1; await store.write(`boveda/${m.id}.v${m.vn}.lua`, actual); m.vers = (m.vers || []).concat([{ v: m.vn, ts: m.mod, size: m.size }]);
+    while (m.vers.length > 5) { const o = m.vers.shift(); try { await store.remove(`boveda/${m.id}.v${o.v}.lua`); } catch {} }
+  }
+  Object.assign(m, { nombre: c.nombre, carpeta: c.carpeta, notas: c.notas, mod: Date.now(), size: c.codigo.length, cifrado: !!BOV_KEY });
+  await store.write(`boveda/${m.id}.lua`, bovCifrar(c.codigo)); await bovSave(l); audit(req, 'bóveda: editar', m.nombre); res.json({ ok: true });
+}).catch((e) => res.status(500).json({ error: 'No se pudo guardar: ' + e.message })));
+app.delete('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => {
+  if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
+  const l = await bovIdx(), m = l.find((x) => x.id === req.params.id); if (!m) return res.json({ ok: true });
+  try { await store.remove(`boveda/${m.id}.lua`); for (const v of m.vers || []) await store.remove(`boveda/${m.id}.v${v.v}.lua`).catch(() => {}); } catch {}
+  await bovSave(l.filter((x) => x.id !== m.id)); audit(req, 'bóveda: borrar', m.nombre); res.json({ ok: true });
+}).catch((e) => res.status(500).json({ error: 'No se pudo borrar: ' + e.message })));
+
+// ---- Consola ----
+app.get('/api/admin/consola/logs', adminOnly, (req, res) => { const d = Number(req.query.desde) || 0; res.json({ ultimo: logN, logs: LOGS.filter((l) => l.n > d).slice(-300) }); });
+const fmtDur = (s) => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + 'd ' : '') + (h ? h + 'h ' : '') + m + 'm'; };
+const AYUDA = ['Comandos:', '  estado               resumen del servidor', '  ejecuciones [slug]   ejecuciones de los loaders', '  soporte              chats de soporte en vivo abiertos', '  ips                  IPs bloqueadas', '  bloquear <ip> [h]    bloquea una IP en los loaders (24 h por defecto)', '  desbloquear <ip>     quita el bloqueo', '  ban <usuario>        banea del hub a un usuario de Roblox', '  unban <usuario>      lo desbanea', '  cache                vacía la memoria de scripts', '  limpiar              limpia la consola'].join('\n');
+app.post('/api/admin/consola/cmd', adminOnly, async (req, res) => {
+  if (limited('cons:' + ip(req), 60, 60e3)) return res.status(429).json({ error: 'Muy rápido.' });
+  const t = clean(req.body && req.body.cmd, 200), [c0, ...a] = t.split(/\s+/), c = (c0 || '').toLowerCase();
+  let out = '';
+  try {
+    if (!c) out = '';
+    else if (c === 'ayuda' || c === 'help') out = AYUDA;
+    else if (c === 'estado') { const e = await ejResumen(); await svCargada; out = [`Uptime: ${fmtDur(process.uptime())}`, `Node: ${process.version}  |  Memoria: ${Math.round(process.memoryUsage().rss / 1048576)} MB`, `Almacenamiento: ${store.kind}`, `Scripts: ${(await loadIndex()).length}  |  Ejecuciones hoy: ${e.hoy}  |  total: ${e.total}`, `Soporte: ${svDisponible() ? 'disponible' : 'no disponible'}  |  chats abiertos: ${[...SV.values()].filter((x) => x.estado === 'abierto').length}`, `IPs bloqueadas: ${[...segBloq].filter(([, h]) => h > Date.now()).length}`, `Vertix: ${DEEPSEEK_KEY ? 'activo' : 'sin clave'}  |  Discord bot: ${DC_TOKEN ? 'configurado' : 'no configurado'}`].join('\n'); }
+    else if (c === 'ejecuciones') { const e = await ejResumen(); const f = a[0] ? e.scripts.filter((s) => s.slug === a[0]) : e.scripts; out = f.length ? f.map((s) => `${s.name.padEnd(28).slice(0, 28)} total ${String(s.total).padStart(6)}  hoy ${String(s.hoy).padStart(4)}  7d ${String(s.sem).padStart(5)}`).join('\n') : 'Sin datos.'; }
+    else if (c === 'soporte') { await svCargada; const l = [...SV.values()].filter((x) => x.estado === 'abierto'); out = l.length ? l.map((x) => `${x.id}  ${x.nombre}  (${x.modo})  ${x.msgs.length} msgs`).join('\n') : 'No hay chats abiertos.'; }
+    else if (c === 'ips') { const l = [...segBloq].filter(([, h]) => h > Date.now()); out = l.length ? l.map(([x, h]) => `${x}  hasta ${new Date(h - 3 * 3600e3).toISOString().slice(0, 16).replace('T', ' ')}`).join('\n') : 'No hay IPs bloqueadas.'; }
+    else if (c === 'bloquear') { const h = Math.min(Math.max(Number(a[1]) || 24, 1), 720); if (!/^[0-9a-fA-F:.]{3,45}$/.test(a[0] || '')) out = 'Uso: bloquear <ip> [horas]'; else { segBloq.set(a[0], Date.now() + h * 3600e3); audit(req, 'consola: bloquear', a[0] + ' ' + h + 'h'); out = `IP ${a[0]} bloqueada ${h} h (en los loaders /s).`; } }
+    else if (c === 'desbloquear') { if (!a[0]) out = 'Uso: desbloquear <ip>'; else { segBloq.delete(a[0]); audit(req, 'consola: desbloquear', a[0]); out = `IP ${a[0]} desbloqueada.`; } }
+    else if (c === 'ban' || c === 'unban') { if (!/^[A-Za-z0-9_]{3,20}$/.test(a[0] || '')) out = `Uso: ${c} <usuario de Roblox>`; else { const d = await apiAdmin('/admin/ban', { user: a[0], accion: c }); audit(req, 'consola: ' + c, a[0]); out = (d && d.mensaje) || 'Hecho.'; } }
+    else if (c === 'cache') { cache.clear(); logoCache.clear(); out = 'Memoria de scripts vaciada.'; }
+    else if (c === 'limpiar') { LOGS.length = 0; out = 'Registro limpio.'; }
+    else out = `Comando desconocido: ${c}. Escribe ayuda.`;
+  } catch (e) { out = 'Error: ' + e.message; }
+  res.json({ out });
 });
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'No encontrado' }));
