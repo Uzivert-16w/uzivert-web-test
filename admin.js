@@ -6,7 +6,7 @@ const base = location.origin;
 function lsFor(slug) { return `loadstring(game:HttpGet("${base}/s/${slug}"))()`; }
 
 async function boot() {
-  try { const me = await api('/api/admin/yo'); $('login').classList.add('hide'); $('panel').classList.remove('hide'); $('out').classList.remove('hide'); $('stor').textContent = me.almacenamiento === 'github' ? 'Guardado permanente en GitHub.' : 'Guardado en disco local: en Render gratis se pierde al reiniciar. Configura GITHUB_TOKEN para guardado permanente.'; refresh(); verif(); }
+  try { const me = await api('/api/admin/yo'); $('login').classList.add('hide'); $('panel').classList.remove('hide'); $('out').classList.remove('hide'); $('stor').textContent = me.almacenamiento === 'github' ? 'Guardado permanente en GitHub.' : 'Guardado en disco local: en Render gratis se pierde al reiniciar. Configura GITHUB_TOKEN para guardado permanente.'; refresh(); verif(); if (window.__adminIr) window.__adminIr(window.__adminTab() || 'resumen'); }
   catch { $('login').classList.remove('hide'); $('panel').classList.add('hide'); }
 }
 async function login() {
@@ -132,4 +132,129 @@ boot();
   });
   $('sv-close').addEventListener('click', async () => { if (!sel) return; try { await api('/api/admin/soporte/cerrar', { method: 'POST', body: { id: sel } }); } catch {} sel = ''; $('sv-box').classList.add('hide'); lista(); });
   setInterval(lista, 4000); setTimeout(lista, 800);
+})();
+
+// ---- pestañas ----
+(function () {
+  const bar = $('tabs'); let actual = '';
+  function ir(t) {
+    actual = t;
+    bar.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
+    document.querySelectorAll('#panel .tab').forEach((d) => d.classList.toggle('hide', d.dataset.t !== t));
+    try { localStorage.setItem('adm_tab', t); } catch {}
+    if (t === 'resumen') resumen(); if (t === 'boveda') bvLista(); if (t === 'seguridad') seguridad(); if (t === 'consola') { setTimeout(() => { const x = $('co-term'); x.scrollTop = x.scrollHeight; }, 50); }
+  }
+  bar.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) ir(b.dataset.t); });
+  let t0 = 'resumen'; try { t0 = localStorage.getItem('adm_tab') || 'resumen'; } catch {}
+  if (!bar.querySelector(`[data-t="${t0}"]`)) t0 = 'resumen';
+  window.__adminTab = () => actual; window.__adminIr = ir;
+  setTimeout(() => ir(t0), 0);
+  setInterval(() => { if (document.hidden) return; if (actual === 'resumen') resumen(); if (actual === 'seguridad') seguridad(); }, 15000);
+})();
+
+// ---- resumen ----
+const fmtT = (s) => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + 'd ' : '') + (h ? h + 'h ' : '') + m + 'm'; };
+const fmtF = (ts) => { if (!ts) return '-'; const d = new Date(ts); return d.toLocaleDateString('es', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }); };
+async function resumen() {
+  if ($('panel').classList.contains('hide')) return;
+  try {
+    const [r, e] = await Promise.all([api('/api/admin/resumen'), api('/api/admin/ejecuciones')]);
+    const st = $('rs-stats'); st.textContent = '';
+    [['Ejecuciones hoy', r.ejecHoy], ['Ejecuciones totales', r.ejecTotal], ['Scripts', r.scripts], ['Chats de soporte', r.chats], ['Soporte', r.soporte ? 'Disponible' : 'No disponible'], ['IPs bloqueadas', r.bloqueadas], ['Servidor activo', fmtT(r.uptime)], ['Memoria', r.memoria + ' MB']].forEach(([k, v]) => {
+      const d = document.createElement('div'); d.className = 'stat'; const b = document.createElement('b'); b.textContent = v; const s = document.createElement('span'); s.textContent = k; d.append(b, s); st.append(d);
+    });
+    const bars = $('rs-bars'); bars.textContent = ''; const max = Math.max(1, ...e.dias.map((x) => x.n));
+    e.dias.forEach((x) => { const c = document.createElement('div'); c.className = 'bar'; const i = document.createElement('i'); i.style.height = Math.max(3, Math.round(x.n / max * 100)) + '%'; i.title = x.d + ': ' + x.n; const n = document.createElement('em'); n.textContent = x.n || ''; const l = document.createElement('small'); l.textContent = x.d.slice(8); c.append(n, i, l); bars.append(c); });
+    const rows = $('rs-rows'); rows.textContent = '';
+    if (!e.scripts.length) { const tr = document.createElement('tr'); tr.append(td('Todavía no hay ejecuciones.')); rows.append(tr); }
+    e.scripts.forEach((s) => { const tr = document.createElement('tr'); tr.append(td(s.name), td(String(s.total)), td(String(s.hoy)), td(String(s.sem)), td(fmtF(s.ult))); rows.append(tr); });
+  } catch {}
+}
+
+// ---- seguridad ----
+async function seguridad() {
+  if ($('panel').classList.contains('hide')) return;
+  try {
+    const [s, a] = await Promise.all([api('/api/admin/seguridad'), api('/api/admin/auditoria')]);
+    const box = $('se-ips'); box.textContent = '';
+    if (!s.bloqueadas.length) { const p = document.createElement('p'); p.textContent = 'No hay IPs bloqueadas.'; box.append(p); }
+    s.bloqueadas.forEach((x) => { const d = document.createElement('div'); d.className = 'sv-it'; const b = document.createElement('b'); b.textContent = x.ip; const sm = document.createElement('small'); sm.textContent = 'hasta ' + fmtF(x.hasta); const u = document.createElement('button'); u.className = 'ghost'; u.style.cssText = 'float:right;padding:6px 12px'; u.textContent = 'Desbloquear'; u.onclick = async () => { await api('/api/admin/seguridad/desbloquear', { method: 'POST', body: { ip: x.ip } }); seguridad(); }; d.append(u, b, sm); box.append(d); });
+    $('se-aud').textContent = a.length ? a.map((x) => `${fmtF(x.ts)}  ${x.ip}  ${x.accion}${x.detalle ? ': ' + x.detalle : ''}`).join('\n') : 'Sin actividad.';
+  } catch {}
+}
+$('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloquear', { method: 'POST', body: { ip: $('se-ip').value.trim(), horas: Number($('se-h').value) || 24 } }); $('se-ip').value = ''; show($('se-m'), 'IP bloqueada.', true); seguridad(); } catch (e) { show($('se-m'), e.message, false); } };
+
+// ---- bóveda ----
+(function () {
+  let lista = [], cur = null;
+  const m = (t, ok) => show($('bv-m'), t, ok);
+  window.bvLista = async function () {
+    try {
+      const r = await api('/api/admin/boveda'); lista = r.archivos;
+      $('bv-info').textContent = r.cifrado ? 'Aquí guardas tus scripts completos. Son privados y están cifrados.' : 'Aquí guardas tus scripts completos. Son privados. Para cifrarlos define BOVEDA_KEY en Render.';
+      const carp = [...new Set(lista.map((x) => x.carpeta).filter(Boolean))].sort();
+      const f = $('bv-fil'), v = f.value; f.textContent = ''; f.append(new Option('Todas las carpetas', '')); carp.forEach((c) => f.append(new Option(c, c))); f.value = carp.includes(v) ? v : '';
+      $('bv-dl').textContent = ''; carp.forEach((c) => { const o = document.createElement('option'); o.value = c; $('bv-dl').append(o); });
+      pinta();
+    } catch (e) { m(e.message, false); }
+  };
+  function pinta() {
+    const box = $('bv-lista'); box.textContent = ''; const f = $('bv-fil').value; const l = lista.filter((x) => !f || x.carpeta === f);
+    if (!l.length) { const p = document.createElement('p'); p.textContent = 'No hay archivos todavía.'; box.append(p); }
+    l.forEach((x) => { const d = document.createElement('div'); d.className = 'sv-it' + (cur === x.id ? ' on' : ''); const b = document.createElement('b'); b.textContent = x.nombre; const s = document.createElement('small'); s.textContent = (x.carpeta ? x.carpeta + ' | ' : '') + Math.round(x.size / 1024 * 10) / 10 + ' KB | ' + fmtF(x.mod) + (x.versiones ? ' | ' + x.versiones + ' versiones' : ''); d.append(b, s); d.onclick = () => abre(x.id); box.append(d); });
+  }
+  $('bv-fil').onchange = pinta;
+  function limpia() { cur = null; ['bv-n', 'bv-c', 'bv-no', 'bv-code'].forEach((i) => ($(i).value = '')); $('bv-vers').classList.add('hide'); $('bv-m').className = 'msg'; }
+  async function abre(id) {
+    try {
+      const r = await api('/api/admin/boveda/' + id); cur = id; $('bv-n').value = r.nombre; $('bv-c').value = r.carpeta; $('bv-no').value = r.notas; $('bv-code').value = r.codigo; $('bv-t').textContent = 'Editar: ' + r.nombre;
+      const vs = $('bv-vsel'); vs.textContent = ''; vs.append(new Option('Elige una versión...', '')); (r.vers || []).slice().reverse().forEach((v) => vs.append(new Option('Versión ' + v.v + ' | ' + fmtF(v.ts), v.v))); $('bv-vers').classList.toggle('hide', !(r.vers || []).length);
+      $('bv-ed').classList.remove('hide'); $('bv-del').classList.remove('hide'); $('bv-dl-btn').classList.remove('hide'); $('bv-m').className = 'msg'; pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' });
+    } catch (e) { m(e.message, false); }
+  }
+  $('bv-new').onclick = () => { limpia(); $('bv-t').textContent = 'Nuevo archivo'; $('bv-ed').classList.remove('hide'); $('bv-del').classList.add('hide'); $('bv-dl-btn').classList.add('hide'); pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' }); };
+  $('bv-x').onclick = () => { $('bv-ed').classList.add('hide'); limpia(); pinta(); };
+  $('bv-file').addEventListener('change', async () => { const f = $('bv-file').files[0]; if (!f) return; if (f.size > 1_200_000) { m('El archivo supera 1.2 MB.', false); return; } $('bv-code').value = await f.text(); if (!$('bv-n').value) $('bv-n').value = f.name.replace(/\.[^.]+$/, ''); });
+  $('bv-vsel').onchange = async () => { const v = $('bv-vsel').value; if (!v || !cur) return; try { const r = await api(`/api/admin/boveda/${cur}/v/${v}`); if (confirm('¿Cargar esa versión en el editor? Aún tienes que guardar.')) $('bv-code').value = r.codigo; } catch (e) { m(e.message, false); } $('bv-vsel').value = ''; };
+  $('bv-save').onclick = async () => {
+    const body = { nombre: $('bv-n').value, carpeta: $('bv-c').value, notas: $('bv-no').value, codigo: $('bv-code').value };
+    if (!body.nombre.trim()) { m('Ponle un nombre.', false); return; } if (!body.codigo.trim()) { m('Pega o sube el script.', false); return; }
+    const b = $('bv-save'); b.disabled = true;
+    try {
+      if (cur) await api('/api/admin/boveda/' + cur, { method: 'PUT', body }); else { const r = await api('/api/admin/boveda', { method: 'POST', body }); cur = r.id; }
+      m('Guardado.', true); await bvLista(); abre(cur);
+    } catch (e) { m(e.message, false); }
+    b.disabled = false;
+  };
+  $('bv-del').onclick = async () => { if (!cur || !confirm('¿Borrar este archivo y sus versiones? No se puede deshacer.')) return; try { await api('/api/admin/boveda/' + cur, { method: 'DELETE' }); $('bv-ed').classList.add('hide'); limpia(); bvLista(); } catch (e) { m(e.message, false); } };
+  $('bv-dl-btn').onclick = () => { if (cur) location.href = `/api/admin/boveda/${cur}/descargar`; };
+  $('bv-copy').onclick = (e) => copyText($('bv-code').value, e.target);
+})();
+
+// ---- consola ----
+(function () {
+  let ultimo = 0, pausa = false, hist = [], hi = 0; const term = $('co-term');
+  const linea = (txt, cls) => { const d = document.createElement('div'); d.className = 'l ' + (cls || ''); d.textContent = txt; term.append(d); while (term.children.length > 700) term.firstChild.remove(); };
+  const filtra = () => { const q = $('co-fil').value.toLowerCase(); term.querySelectorAll('.l').forEach((d) => (d.style.display = !q || d.textContent.toLowerCase().includes(q) ? '' : 'none')); };
+  async function logs() {
+    if (pausa || document.hidden || $('panel').classList.contains('hide') || window.__adminTab() !== 'consola') return;
+    try {
+      const r = await api('/api/admin/consola/logs?desde=' + ultimo); const abajo = term.scrollHeight - term.scrollTop - term.clientHeight < 40;
+      r.logs.forEach((l) => linea(new Date(l.ts).toLocaleTimeString('es') + '  ' + l.t, l.nivel)); ultimo = r.ultimo;
+      if (r.logs.length) { filtra(); if (abajo) term.scrollTop = term.scrollHeight; }
+    } catch {}
+  }
+  setInterval(logs, 2000); setTimeout(logs, 1000);
+  async function cmd(t) {
+    t = t.trim(); if (!t) return; hist.push(t); hi = hist.length; linea('> ' + t, 'cmd');
+    if (t.toLowerCase() === 'limpiar') { term.textContent = ''; }
+    try { const r = await api('/api/admin/consola/cmd', { method: 'POST', body: { cmd: t } }); if (r.out) r.out.split('\n').forEach((x) => linea(x, 'out')); } catch (e) { linea('Error: ' + e.message, 'error'); }
+    term.scrollTop = term.scrollHeight;
+  }
+  $('co-form').addEventListener('submit', (e) => { e.preventDefault(); const v = $('co-in').value; $('co-in').value = ''; cmd(v); });
+  $('co-in').addEventListener('keydown', (e) => { if (e.key === 'ArrowUp' && hi > 0) { $('co-in').value = hist[--hi]; e.preventDefault(); } else if (e.key === 'ArrowDown') { hi = Math.min(hi + 1, hist.length); $('co-in').value = hist[hi] || ''; e.preventDefault(); } });
+  $('co-chips').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) cmd(b.dataset.c); });
+  $('co-pause').onclick = () => { pausa = !pausa; $('co-pause').textContent = pausa ? 'Reanudar' : 'Pausar'; };
+  $('co-clear').onclick = () => { term.textContent = ''; };
+  $('co-fil').addEventListener('input', filtra);
 })();
