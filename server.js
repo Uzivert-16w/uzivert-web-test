@@ -644,7 +644,7 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   const previo = (await loadIndex()).find((x) => x.slug === slug);
   if (b.logo === undefined && previo) logo = previo.logo || '';
   else { try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); } }
-  const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', situacion: ['ok', 'mant', 'caido'].includes(b.situacion) ? b.situacion : (previo && previo.situacion) || 'ok', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: b.estado === 'oculto' ? 'oculto' : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
+  const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', situacion: ['ok', 'mant', 'caido'].includes(b.situacion) ? b.situacion : (previo && previo.situacion) || 'ok', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: ['oculto', 'enlace'].includes(b.estado) ? b.estado : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
   let aviso = '';
   try {
     await store.write(`scripts/${slug}.lua`, code);
@@ -1002,7 +1002,7 @@ app.get('/s/:slug', async (req, res) => {
   if (!SLUG.test(slug)) return res.status(404).send('-- no encontrado');
   try {
     const meta = (await loadIndex()).find((s) => s.slug === slug);
-    if (!meta || meta.estado !== 'activo') return res.status(404).send('-- no encontrado');
+    if (!meta || (meta.estado !== 'activo' && meta.estado !== 'enlace')) return res.status(404).send('-- no encontrado');
     if (!isAdmin(req)) contarEjec(slug, quien);
     const c = cache.get(slug);
     if (c && Date.now() - c.t < 30e3) return res.send(c.code);
@@ -1253,13 +1253,13 @@ const bovSerial = (fn) => { const p = bovCola.then(fn, fn); bovCola = p.catch(()
 const bovIdx = async () => { try { return JSON.parse((await store.read('boveda/index.json')) || '[]'); } catch { return []; } };
 const bovSave = (l) => store.write('boveda/index.json', JSON.stringify(l));
 const BOV_ID = /^[a-f0-9]{12}$/;
-const bovMeta = (m) => ({ id: m.id, nombre: m.nombre, carpeta: m.carpeta || '', notas: m.notas || '', creado: m.creado, mod: m.mod, size: m.size, versiones: (m.vers || []).length, cifrado: !!m.cifrado });
+const bovMeta = (m) => ({ slug: m.slug || '', id: m.id, nombre: m.nombre, carpeta: m.carpeta || '', notas: m.notas || '', creado: m.creado, mod: m.mod, size: m.size, versiones: (m.vers || []).length, cifrado: !!m.cifrado });
 const bovCampos = (b) => ({ nombre: clean(b.nombre, 80), carpeta: clean(b.carpeta, 40), notas: clean(b.notas, 500), codigo: String(b.codigo == null ? '' : b.codigo) });
 app.get('/api/admin/boveda', adminOnly, async (req, res) => res.json({ cifrado: !!BOV_KEY, archivos: (await bovIdx()).map(bovMeta).sort((a, b) => (a.carpeta || '~').localeCompare(b.carpeta || '~') || a.nombre.localeCompare(b.nombre)) }));
 app.get('/api/admin/boveda/:id', adminOnly, async (req, res) => {
   if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
   const m = (await bovIdx()).find((x) => x.id === req.params.id); if (!m) return res.status(404).json({ error: 'No existe.' });
-  try { const codigo = bovDescifrar(await store.read(`boveda/${m.id}.lua`)); audit(req, 'bóveda: abrir', m.nombre); res.json(Object.assign(bovMeta(m), { codigo, vers: m.vers || [] })); } catch (e) { res.status(500).json({ error: e.message }); }
+  try { const codigo = bovDescifrar(await store.read(`boveda/${m.id}.lua`)); audit(req, 'bóveda: abrir', m.nombre); res.json(Object.assign(bovMeta(m), { codigo, vers: m.vers || [], loader: m.slug ? `loadstring(game:HttpGet("${baseUrl(req)}/s/${m.slug}"))()` : '' })); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/admin/boveda/:id/v/:v', adminOnly, async (req, res) => {
   if (!BOV_ID.test(req.params.id) || !/^\d{1,6}$/.test(req.params.v)) return res.status(400).json({ error: 'Inválido' });
@@ -1291,11 +1291,39 @@ app.put('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => 
     while (m.vers.length > 5) { const o = m.vers.shift(); try { await store.remove(`boveda/${m.id}.v${o.v}.lua`); } catch {} }
   }
   Object.assign(m, { nombre: c.nombre, carpeta: c.carpeta, notas: c.notas, mod: Date.now(), size: c.codigo.length, cifrado: !!BOV_KEY });
-  await store.write(`boveda/${m.id}.lua`, bovCifrar(c.codigo)); await bovSave(l); audit(req, 'bóveda: editar', m.nombre); res.json({ ok: true });
+  await store.write(`boveda/${m.id}.lua`, bovCifrar(c.codigo)); if (m.slug) await bovPublicar(m, c.codigo, req); await bovSave(l); audit(req, 'bóveda: editar', m.nombre + (m.slug ? ' (loader actualizado)' : '')); res.json({ ok: true, actualizado: !!m.slug });
 }).catch((e) => res.status(500).json({ error: 'No se pudo guardar: ' + e.message })));
+// Publicar un archivo de la bóveda como loader de la página (solo con enlace: no aparece en la lista pública)
+async function bovPublicar(m, code, req) {
+  const prev = (await loadIndex()).find((x) => x.slug === m.slug) || {};
+  const meta = Object.assign({ logo: '', situacion: 'ok', game: m.carpeta || '', version: '', description: '' }, prev, { slug: m.slug, name: m.nombre, verificacion: 'no', estado: prev.estado === 'activo' ? 'activo' : 'enlace', bovedaId: m.id, updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) });
+  await store.write(`scripts/${m.slug}.lua`, code);
+  const l = (await loadIndex()).filter((x) => x.slug !== m.slug); l.push(meta); l.sort((a, c) => a.name.localeCompare(c.name));
+  await saveIndex(l); cache.delete(m.slug);
+}
+app.post('/api/admin/boveda/:id/publicar', adminOnly, (req, res) => bovSerial(async () => {
+  if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
+  const slug = clean(req.body && req.body.slug, 40).toLowerCase();
+  if (!SLUG.test(slug)) return res.status(400).json({ error: 'Nombre del loader inválido (minúsculas, números y guiones, 2-40).' });
+  const l = await bovIdx(), m = l.find((x) => x.id === req.params.id); if (!m) return res.status(404).json({ error: 'No existe.' });
+  const otro = (await loadIndex()).find((x) => x.slug === slug && x.bovedaId !== m.id);
+  if (otro) return res.status(409).json({ error: 'Ese nombre ya lo usa otro script de la página.' });
+  if (l.some((x) => x.id !== m.id && x.slug === slug)) return res.status(409).json({ error: 'Ese nombre ya lo usa otro archivo de la bóveda.' });
+  if (m.slug && m.slug !== slug) { try { await store.remove(`scripts/${m.slug}.lua`); await saveIndex((await loadIndex()).filter((x) => x.slug !== m.slug)); cache.delete(m.slug); } catch {} }
+  m.slug = slug;
+  await bovPublicar(m, bovDescifrar(await store.read(`boveda/${m.id}.lua`)), req); await bovSave(l);
+  audit(req, 'bóveda: publicar', m.nombre + ' -> /s/' + slug); res.json({ ok: true, slug, loader: `loadstring(game:HttpGet("${baseUrl(req)}/s/${slug}"))()` });
+}).catch((e) => res.status(500).json({ error: 'No se pudo publicar: ' + e.message })));
+app.post('/api/admin/boveda/:id/despublicar', adminOnly, (req, res) => bovSerial(async () => {
+  if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
+  const l = await bovIdx(), m = l.find((x) => x.id === req.params.id); if (!m) return res.status(404).json({ error: 'No existe.' });
+  if (m.slug) { try { await store.remove(`scripts/${m.slug}.lua`); } catch {} await saveIndex((await loadIndex()).filter((x) => x.slug !== m.slug)); cache.delete(m.slug); audit(req, 'bóveda: despublicar', m.nombre + ' (/s/' + m.slug + ')'); m.slug = ''; await bovSave(l); }
+  res.json({ ok: true });
+}).catch((e) => res.status(500).json({ error: 'No se pudo despublicar: ' + e.message })));
 app.delete('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => {
   if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
   const l = await bovIdx(), m = l.find((x) => x.id === req.params.id); if (!m) return res.json({ ok: true });
+  if (m.slug) { try { await store.remove(`scripts/${m.slug}.lua`); await saveIndex((await loadIndex()).filter((x) => x.slug !== m.slug)); cache.delete(m.slug); } catch {} }
   try { await store.remove(`boveda/${m.id}.lua`); for (const v of m.vers || []) await store.remove(`boveda/${m.id}.v${v.v}.lua`).catch(() => {}); } catch {}
   await bovSave(l.filter((x) => x.id !== m.id)); audit(req, 'bóveda: borrar', m.nombre); res.json({ ok: true });
 }).catch((e) => res.status(500).json({ error: 'No se pudo borrar: ' + e.message })));
