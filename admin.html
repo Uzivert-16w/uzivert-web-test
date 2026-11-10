@@ -11,6 +11,40 @@
     <div class="row"><button id="go">Entrar</button></div><div class="msg" id="lm"></div>
   </section>
   <section id="panel" class="hide">
+    <div class="tabs" id="tabs"><button data-t="resumen">Resumen</button><button data-t="scripts">Scripts</button><button data-t="soporte">Soporte</button><button data-t="boveda">Bóveda</button><button data-t="consola">Consola</button><button data-t="seguridad">Seguridad</button><button data-t="updates">Updates</button><button data-t="sistema">Sistema</button></div>
+    <div class="tab hide" data-t="resumen">
+      <div class="stats" id="rs-stats"></div>
+      <div class="card"><h3>Ejecuciones de los últimos 14 días</h3><p>Cada vez que un ejecutor carga un loader de la página cuenta una ejecución.</p><div class="bars" id="rs-bars"></div></div>
+      <div class="card"><h3>Por script</h3><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>SCRIPT</th><th>TOTAL</th><th>HOY</th><th>7 DÍAS</th><th>ÚLTIMA</th></tr></thead><tbody id="rs-rows"></tbody></table></div><p id="rs-nota" style="margin-top:10px">Solo cuentan los loaders que salen de esta página (/s/nombre). Los loaders de Vercel y GitHub no pasan por aquí.</p></div>
+    </div>
+    <div class="tab hide" data-t="boveda">
+      <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3>Bóveda de scripts</h3><button id="bv-new">Nuevo archivo</button></div>
+        <p id="bv-info" style="margin:4px 0 10px">Aquí guardas tus scripts completos. Son privados: nunca se sirven públicamente.</p>
+        <select id="bv-fil"><option value="">Todas las carpetas</option></select>
+        <div class="sv-lista" id="bv-lista"></div></div>
+      <div class="card hide" id="bv-ed"><h3 id="bv-t">Nuevo archivo</h3>
+        <div class="two"><div><label for="bv-n">Nombre</label><input id="bv-n" maxlength="80" placeholder="Ej: Duelos completo v2.5"></div><div><label for="bv-c">Carpeta</label><input id="bv-c" maxlength="40" list="bv-dl" placeholder="Ej: Duelos"><datalist id="bv-dl"></datalist></div></div>
+        <label for="bv-no">Notas</label><input id="bv-no" maxlength="500" placeholder="Qué es o qué cambió">
+        <label for="bv-code">Script completo</label><textarea class="code-ed" id="bv-code" spellcheck="false"></textarea>
+        <label for="bv-file">O subir un archivo .lua / .txt</label><input id="bv-file" type="file" accept=".lua,.txt,text/plain">
+        <div id="bv-vers" class="hide"><label for="bv-vsel">Versiones anteriores</label><select id="bv-vsel"></select></div>
+        <div class="row"><button id="bv-save">Guardar</button><button class="ghost" id="bv-dl-btn">Descargar</button><button class="ghost" id="bv-copy">Copiar</button><button class="danger" id="bv-del">Borrar</button><button class="ghost" id="bv-x">Cerrar</button></div>
+        <div class="msg" id="bv-m"></div></div>
+    </div>
+    <div class="tab hide" data-t="consola">
+      <div class="card"><h3>Consola</h3><p>Registro del servidor en vivo y comandos. Las claves y webhooks se ocultan.</p>
+        <div class="row" style="margin:10px 0"><input id="co-fil" placeholder="Filtrar..." style="flex:1;min-width:120px"><button class="ghost" id="co-pause">Pausar</button><button class="ghost" id="co-clear">Limpiar</button></div>
+        <div class="term" id="co-term"></div>
+        <form class="sv-form" id="co-form" autocomplete="off" style="margin-top:8px"><input id="co-in" placeholder="Escribe un comando (ayuda)" autocapitalize="off" autocomplete="off" spellcheck="false"><button type="submit">Ejecutar</button></form>
+        <div class="chips" id="co-chips"><button class="ghost" data-c="ayuda">ayuda</button><button class="ghost" data-c="estado">estado</button><button class="ghost" data-c="ejecuciones">ejecuciones</button><button class="ghost" data-c="ips">ips</button><button class="ghost" data-c="soporte">soporte</button></div></div>
+    </div>
+    <div class="tab hide" data-t="seguridad">
+      <div class="card"><h3>IPs bloqueadas</h3><p>Se bloquean solas cuando alguien insiste en abrir un loader fuera de Roblox. El bloqueo afecta a los loaders de la página.</p>
+        <div class="sv-lista" id="se-ips"></div>
+        <div class="row"><input id="se-ip" placeholder="IP a bloquear" style="flex:1;min-width:140px"><input id="se-h" type="number" min="1" max="720" value="24" style="width:90px"><button id="se-add">Bloquear</button></div><div class="msg" id="se-m"></div></div>
+      <div class="card"><h3>Actividad del panel</h3><p>Quién hizo qué (últimas acciones).</p><pre class="ls" id="se-aud" style="max-height:340px;overflow:auto;margin-top:10px"></pre></div>
+    </div>
+<div class="tab hide" data-t="scripts">
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3>Mis scripts</h3><button id="new">Nuevo script</button></div>
       <p id="stor" style="margin:4px 0 10px"></p>
       <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>NOMBRE</th><th>JUEGO</th><th>VERSIÓN</th><th>ESTADO</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
@@ -31,6 +65,8 @@
       <div id="e-link" class="hide"><label>Loadstring</label><pre class="ls" id="e-ls"></pre><div class="row" style="margin-top:8px"><button class="ghost" id="e-copy">Copiar loadstring</button></div></div>
       <div class="row"><button id="e-save">Guardar</button><button class="ghost" id="e-cancel">Cerrar</button></div><div class="msg" id="em"></div>
     </div>
+</div>
+<div class="tab hide" data-t="soporte">
     <div class="card"><h3>Soporte en vivo</h3>
       <p>Activa tu disponibilidad y responde aquí mientras tengas esta página abierta. Si no respondes en 90 segundos, Vertix toma el chat.</p>
       <div class="row" style="margin-top:10px"><button id="sv-tog" class="ghost">Cargando...</button></div>
@@ -40,6 +76,8 @@
         <div class="row" style="margin-top:10px"><button class="danger" id="sv-close" type="button">Cerrar chat</button></div></div>
       <div class="msg" id="sv-m"></div>
     </div>
+</div>
+<div class="tab hide" data-t="updates">
     <div class="card"><h3>Publicar actualización</h3>
       <p>Se publica en Discord (con el webhook de tu API) y también en la pestaña Updates de la página.</p>
       <label for="u-t">Título</label><input id="u-t" maxlength="100" placeholder="Ej: Update v4.8">
@@ -48,8 +86,11 @@
       <div class="row"><button id="u-pub">Publicar actualización</button><button class="ghost" id="u-ver">Ver últimos</button></div>
       <div class="msg" id="u-m"></div><pre class="ls hide" id="u-list" style="margin-top:10px;max-height:260px;overflow:auto"></pre>
     </div>
+</div>
+<div class="tab hide" data-t="sistema">
     <div class="card"><h3>Cuentas verificadas</h3><p id="vcount">...</p><div class="row"><button class="ghost" id="vlist">Ver lista</button></div><pre class="ls hide" id="vpre" style="margin-top:10px;max-height:260px;overflow:auto"></pre></div>
   <div class="card"><h3>Diagnóstico</h3><p>Prueba si el servidor llega a Roblox y a Discord.</p><div class="row"><button class="ghost" id="diag">Ejecutar diagnóstico</button></div><pre class="ls hide" id="dpre" style="margin-top:10px"></pre></div>
+</div>
   </section>
 </main>
 <script src="/common.js"></script><script src="/admin.js"></script>
