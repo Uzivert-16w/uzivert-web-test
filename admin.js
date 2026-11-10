@@ -200,8 +200,12 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
   };
   function pinta() {
     const box = $('bv-lista'); box.textContent = ''; const f = $('bv-fil').value; const l = lista.filter((x) => !f || x.carpeta === f);
-    if (!l.length) { const p = document.createElement('p'); p.textContent = 'No hay archivos todavía.'; box.append(p); }
-    l.forEach((x) => { const d = document.createElement('div'); d.className = 'sv-it' + (cur === x.id ? ' on' : ''); const b = document.createElement('b'); b.textContent = x.nombre; const s = document.createElement('small'); s.textContent = (x.carpeta ? x.carpeta + ' | ' : '') + Math.round(x.size / 1024 * 10) / 10 + ' KB | ' + fmtF(x.mod) + (x.versiones ? ' | ' + x.versiones + ' versiones' : '') + (x.slug ? ' | loader: ' + x.slug : ''); d.append(b, s); d.onclick = () => abre(x.id); box.append(d); });
+    const item = (x) => { const d = document.createElement('div'); d.className = 'sv-it' + (cur === x.id ? ' on' : ''); const b = document.createElement('b'); b.textContent = x.nombre; const s = document.createElement('small'); s.textContent = (x.carpeta ? x.carpeta + ' | ' : '') + Math.round(x.size / 1024 * 10) / 10 + ' KB | ' + fmtF(x.mod) + (x.versiones ? ' | ' + x.versiones + ' versiones' : '') + (x.slug ? ' | link: /s/' + x.slug : ''); d.append(b, s); d.onclick = () => abre(x.id); return d; };
+    [['loader', 'Loaders'], ['script', 'Scripts (los que ejecuta el loader)']].forEach(([t, tit]) => {
+      const g = l.filter((x) => x.tipo === t); const h = document.createElement('h4'); h.textContent = tit + ' (' + g.length + ')'; h.style.margin = '14px 0 6px'; box.append(h);
+      if (!g.length) { const p = document.createElement('p'); p.textContent = 'Nada todavía.'; p.style.margin = '0'; box.append(p); }
+      g.forEach((x) => box.append(item(x)));
+    });
   }
   $('bv-fil').onchange = pinta;
   function mostrarLoader(slug, loader) {
@@ -211,20 +215,21 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
     $('bv-pubbtn').textContent = slug ? 'Actualizar nombre / republicar' : 'Publicar loader';
     $('bv-pub').classList.toggle('hide', !cur);
   }
-  function limpia() { cur = null; ['bv-n', 'bv-c', 'bv-no', 'bv-code', 'bv-slug'].forEach((i) => ($(i).value = '')); mostrarLoader('', ''); $('bv-vers').classList.add('hide'); $('bv-m').className = 'msg'; }
+  function limpia() { cur = null; ['bv-n', 'bv-c', 'bv-no', 'bv-code', 'bv-slug'].forEach((i) => ($(i).value = '')); $('bv-tp').value = 'script'; mostrarLoader('', ''); $('bv-vers').classList.add('hide'); $('bv-m').className = 'msg'; }
   async function abre(id) {
     try {
-      const r = await api('/api/admin/boveda/' + id); cur = id; $('bv-n').value = r.nombre; $('bv-c').value = r.carpeta; $('bv-no').value = r.notas; $('bv-code').value = r.codigo; $('bv-t').textContent = 'Editar: ' + r.nombre;
+      const r = await api('/api/admin/boveda/' + id); cur = id; $('bv-n').value = r.nombre; $('bv-c').value = r.carpeta; $('bv-tp').value = r.tipo || 'script'; $('bv-no').value = r.notas; $('bv-code').value = r.codigo; $('bv-t').textContent = 'Editar: ' + r.nombre;
       const vs = $('bv-vsel'); vs.textContent = ''; vs.append(new Option('Elige una versión...', '')); (r.vers || []).slice().reverse().forEach((v) => vs.append(new Option('Versión ' + v.v + ' | ' + fmtF(v.ts), v.v))); $('bv-vers').classList.toggle('hide', !(r.vers || []).length);
       mostrarLoader(r.slug, r.loader); $('bv-ed').classList.remove('hide'); $('bv-del').classList.remove('hide'); $('bv-dl-btn').classList.remove('hide'); $('bv-m').className = 'msg'; pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' });
     } catch (e) { m(e.message, false); }
   }
-  $('bv-new').onclick = () => { limpia(); $('bv-pub').classList.add('hide'); $('bv-t').textContent = 'Nuevo archivo'; $('bv-ed').classList.remove('hide'); $('bv-del').classList.add('hide'); $('bv-dl-btn').classList.add('hide'); pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' }); };
+  const bvNuevo = (tp) => { limpia(); $('bv-tp').value = tp; $('bv-pub').classList.add('hide'); $('bv-t').textContent = tp === 'loader' ? 'Nuevo loader' : 'Nuevo script'; $('bv-ed').classList.remove('hide'); $('bv-del').classList.add('hide'); $('bv-dl-btn').classList.add('hide'); pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' }); };
+  $('bv-newl').onclick = () => bvNuevo('loader'); $('bv-news').onclick = () => bvNuevo('script');
   $('bv-x').onclick = () => { $('bv-ed').classList.add('hide'); limpia(); pinta(); };
   $('bv-file').addEventListener('change', async () => { const f = $('bv-file').files[0]; if (!f) return; if (f.size > 1_200_000) { m('El archivo supera 1.2 MB.', false); return; } $('bv-code').value = await f.text(); if (!$('bv-n').value) $('bv-n').value = f.name.replace(/\.[^.]+$/, ''); });
   $('bv-vsel').onchange = async () => { const v = $('bv-vsel').value; if (!v || !cur) return; try { const r = await api(`/api/admin/boveda/${cur}/v/${v}`); if (confirm('¿Cargar esa versión en el editor? Aún tienes que guardar.')) $('bv-code').value = r.codigo; } catch (e) { m(e.message, false); } $('bv-vsel').value = ''; };
   $('bv-save').onclick = async () => {
-    const body = { nombre: $('bv-n').value, carpeta: $('bv-c').value, notas: $('bv-no').value, codigo: $('bv-code').value };
+    const body = { tipo: $('bv-tp').value, nombre: $('bv-n').value, carpeta: $('bv-c').value, notas: $('bv-no').value, codigo: $('bv-code').value };
     if (!body.nombre.trim()) { m('Ponle un nombre.', false); return; } if (!body.codigo.trim()) { m('Pega o sube el script.', false); return; }
     const b = $('bv-save'); b.disabled = true;
     try {
