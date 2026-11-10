@@ -961,7 +961,32 @@ app.post('/api/admin/foro/baneo', adminOnly, async (req, res) => {
 
 // Entrega pública del script crudo: loadstring(game:HttpGet("https://TU-DOMINIO/s/slug"))()
 const cache = new Map();
+// Protección del loader: solo lo recibe un ejecutor de Roblox. Un navegador o una herramienta (curl, python...) ve "No autorizado".
+// Es una barrera por cabeceras: frena a casi todos, pero alguien que falsifique las cabeceras a mano podría saltarla.
+const SEG_WEBHOOK = env.DISCORD_WEBHOOK_SEGURIDAD || WEBHOOK_SOPORTE;
+const segBloq = new Map();                                         // ip -> hasta (bloqueo temporal)
+setInterval(() => { const n = Date.now(); for (const [k, v] of segBloq) if (v < n) segBloq.delete(k); }, 60e3).unref();
+function esNavegadorOHerramienta(req) {
+  const h = req.headers, ua = String(h['user-agent'] || '');
+  if (h['sec-fetch-mode'] || h['sec-fetch-dest'] || h['sec-fetch-site'] || h['sec-ch-ua'] || h['upgrade-insecure-requests'] || /text\/html/i.test(String(h.accept || ''))) return 'navegador';
+  if (/\b(curl|wget|python|aiohttp|httpx|requests|postman|insomnia|httpie|axios|node-fetch|undici|go-http|libwww|scrapy|powershell|spider|crawl)/i.test(ua)) return 'herramienta';
+  return '';
+}
+const PAGINA_NO = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No autorizado</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050507;color:#f2f3f6;font:16px system-ui,sans-serif;text-align:center}div{padding:24px}h1{font-size:22px;margin:0 0 8px}p{color:#9a9da6;margin:0}</style><div><h1>No estás autorizado</h1><p>Este enlace solo funciona dentro de Roblox con el loader oficial.</p></div>';
 app.get('/s/:slug', async (req, res) => {
+  const quien = ip(req);
+  const bloqueado = segBloq.get(quien);
+  const razon = isAdmin(req) ? '' : (bloqueado && bloqueado > Date.now() ? 'bloqueado' : esNavegadorOHerramienta(req));
+  if (razon) {
+    res.status(403).setHeader('Cache-Control', 'no-store');
+    if (razon !== 'bloqueado' && limited('seg:' + quien, 8, 10 * 60e3)) {   // 8 intentos en 10 min: bloqueo de 1 hora y aviso
+      segBloq.set(quien, Date.now() + 3600e3);
+      console.warn('[seguridad] IP bloqueada por insistir en /s/' + req.params.slug + ':', quien);
+      postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien insistió en abrir un loader fuera de Roblox. Se bloqueó su IP por 1 hora.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: razon, inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }, { name: 'User-Agent', value: '`' + clean(req.headers['user-agent'], 150).replace(/`/g, "'") + '`' }], timestamp: new Date().toISOString() }] }).catch(() => {});
+    }
+    if (/text\/html/i.test(String(req.headers.accept || ''))) return res.type('html').send(PAGINA_NO);
+    return res.type('text/plain; charset=utf-8').send('-- No estas autorizado');
+  }
   res.type('text/plain; charset=utf-8').setHeader('Cache-Control', 'no-store');
   const slug = req.params.slug;
   if (!SLUG.test(slug)) return res.status(404).send('-- no encontrado');
