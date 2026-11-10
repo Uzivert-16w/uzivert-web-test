@@ -201,18 +201,25 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
   function pinta() {
     const box = $('bv-lista'); box.textContent = ''; const f = $('bv-fil').value; const l = lista.filter((x) => !f || x.carpeta === f);
     if (!l.length) { const p = document.createElement('p'); p.textContent = 'No hay archivos todavía.'; box.append(p); }
-    l.forEach((x) => { const d = document.createElement('div'); d.className = 'sv-it' + (cur === x.id ? ' on' : ''); const b = document.createElement('b'); b.textContent = x.nombre; const s = document.createElement('small'); s.textContent = (x.carpeta ? x.carpeta + ' | ' : '') + Math.round(x.size / 1024 * 10) / 10 + ' KB | ' + fmtF(x.mod) + (x.versiones ? ' | ' + x.versiones + ' versiones' : ''); d.append(b, s); d.onclick = () => abre(x.id); box.append(d); });
+    l.forEach((x) => { const d = document.createElement('div'); d.className = 'sv-it' + (cur === x.id ? ' on' : ''); const b = document.createElement('b'); b.textContent = x.nombre; const s = document.createElement('small'); s.textContent = (x.carpeta ? x.carpeta + ' | ' : '') + Math.round(x.size / 1024 * 10) / 10 + ' KB | ' + fmtF(x.mod) + (x.versiones ? ' | ' + x.versiones + ' versiones' : '') + (x.slug ? ' | loader: ' + x.slug : ''); d.append(b, s); d.onclick = () => abre(x.id); box.append(d); });
   }
   $('bv-fil').onchange = pinta;
-  function limpia() { cur = null; ['bv-n', 'bv-c', 'bv-no', 'bv-code'].forEach((i) => ($(i).value = '')); $('bv-vers').classList.add('hide'); $('bv-m').className = 'msg'; }
+  function mostrarLoader(slug, loader) {
+    $('bv-slug').value = slug || ''; $('bv-slug').disabled = false;
+    $('bv-loader').classList.toggle('hide', !loader); $('bv-loader').textContent = loader || '';
+    $('bv-loaderrow').classList.toggle('hide', !loader); $('bv-unpub').classList.toggle('hide', !slug);
+    $('bv-pubbtn').textContent = slug ? 'Actualizar nombre / republicar' : 'Publicar loader';
+    $('bv-pub').classList.toggle('hide', !cur);
+  }
+  function limpia() { cur = null; ['bv-n', 'bv-c', 'bv-no', 'bv-code', 'bv-slug'].forEach((i) => ($(i).value = '')); mostrarLoader('', ''); $('bv-vers').classList.add('hide'); $('bv-m').className = 'msg'; }
   async function abre(id) {
     try {
       const r = await api('/api/admin/boveda/' + id); cur = id; $('bv-n').value = r.nombre; $('bv-c').value = r.carpeta; $('bv-no').value = r.notas; $('bv-code').value = r.codigo; $('bv-t').textContent = 'Editar: ' + r.nombre;
       const vs = $('bv-vsel'); vs.textContent = ''; vs.append(new Option('Elige una versión...', '')); (r.vers || []).slice().reverse().forEach((v) => vs.append(new Option('Versión ' + v.v + ' | ' + fmtF(v.ts), v.v))); $('bv-vers').classList.toggle('hide', !(r.vers || []).length);
-      $('bv-ed').classList.remove('hide'); $('bv-del').classList.remove('hide'); $('bv-dl-btn').classList.remove('hide'); $('bv-m').className = 'msg'; pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' });
+      mostrarLoader(r.slug, r.loader); $('bv-ed').classList.remove('hide'); $('bv-del').classList.remove('hide'); $('bv-dl-btn').classList.remove('hide'); $('bv-m').className = 'msg'; pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' });
     } catch (e) { m(e.message, false); }
   }
-  $('bv-new').onclick = () => { limpia(); $('bv-t').textContent = 'Nuevo archivo'; $('bv-ed').classList.remove('hide'); $('bv-del').classList.add('hide'); $('bv-dl-btn').classList.add('hide'); pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' }); };
+  $('bv-new').onclick = () => { limpia(); $('bv-pub').classList.add('hide'); $('bv-t').textContent = 'Nuevo archivo'; $('bv-ed').classList.remove('hide'); $('bv-del').classList.add('hide'); $('bv-dl-btn').classList.add('hide'); pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' }); };
   $('bv-x').onclick = () => { $('bv-ed').classList.add('hide'); limpia(); pinta(); };
   $('bv-file').addEventListener('change', async () => { const f = $('bv-file').files[0]; if (!f) return; if (f.size > 1_200_000) { m('El archivo supera 1.2 MB.', false); return; } $('bv-code').value = await f.text(); if (!$('bv-n').value) $('bv-n').value = f.name.replace(/\.[^.]+$/, ''); });
   $('bv-vsel').onchange = async () => { const v = $('bv-vsel').value; if (!v || !cur) return; try { const r = await api(`/api/admin/boveda/${cur}/v/${v}`); if (confirm('¿Cargar esa versión en el editor? Aún tienes que guardar.')) $('bv-code').value = r.codigo; } catch (e) { m(e.message, false); } $('bv-vsel').value = ''; };
@@ -228,6 +235,13 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
   };
   $('bv-del').onclick = async () => { if (!cur || !confirm('¿Borrar este archivo y sus versiones? No se puede deshacer.')) return; try { await api('/api/admin/boveda/' + cur, { method: 'DELETE' }); $('bv-ed').classList.add('hide'); limpia(); bvLista(); } catch (e) { m(e.message, false); } };
   $('bv-dl-btn').onclick = () => { if (cur) location.href = `/api/admin/boveda/${cur}/descargar`; };
+  $('bv-pubbtn').onclick = async () => {
+    if (!cur) { m('Primero guarda el archivo.', false); return; }
+    const slug = $('bv-slug').value.trim().toLowerCase(); if (!slug) { m('Escribe un nombre para el loader.', false); return; }
+    try { const r = await api(`/api/admin/boveda/${cur}/publicar`, { method: 'POST', body: { slug } }); mostrarLoader(r.slug, r.loader); m('Loader publicado.', true); bvLista(); } catch (e) { m(e.message, false); }
+  };
+  $('bv-unpub').onclick = async () => { if (!cur || !confirm('¿Despublicar el loader? El link dejará de funcionar.')) return; try { await api(`/api/admin/boveda/${cur}/despublicar`, { method: 'POST', body: {} }); mostrarLoader('', ''); m('Loader despublicado.', true); bvLista(); } catch (e) { m(e.message, false); } };
+  $('bv-lcopy').onclick = (e) => copyText($('bv-loader').textContent, e.target);
   $('bv-copy').onclick = (e) => copyText($('bv-code').value, e.target);
 })();
 
