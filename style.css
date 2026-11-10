@@ -260,3 +260,19 @@ body.vx-mode main{max-width:900px;padding:8px 10px 10px}
 .sv-it{background:#08090d;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer}
 .sv-it.on{border-color:var(--ac)}.sv-it b{font-size:14px}.sv-it small{display:block;color:var(--sub);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sv-it .n{float:right;background:var(--err);color:#000;border-radius:10px;font-size:11px;padding:1px 7px;font-weight:700}
+
+/* admin: pestañas, resumen, consola */
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 0 12px;margin-bottom:4px;position:sticky;top:0;z-index:5;background:linear-gradient(var(--bg) 80%,transparent);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;background:#14151c;color:var(--sub);border:1px solid var(--line);padding:9px 16px;font-size:14px;border-radius:12px}
+.tabs button.on{background:var(--ac);color:#000;border-color:var(--ac)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.stat b{display:block;font-size:22px;line-height:1.2}.stat span{font-size:12.5px;color:var(--sub)}
+.bars{display:flex;align-items:flex-end;gap:5px;height:150px;margin-top:14px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.bar i{display:block;width:100%;background:var(--ac);border-radius:5px 5px 2px 2px;min-height:3px}
+.bar em{font-style:normal;font-size:10.5px;color:var(--sub);height:14px}.bar small{font-size:10px;color:var(--sub);margin-top:3px}
+.term{background:#030305;border:1px solid var(--line);border-radius:12px;padding:10px;height:340px;overflow-y:auto;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;word-break:break-word}
+.term .l{white-space:pre-wrap}.term .l.aviso{color:#ffcf7a}.term .l.error{color:var(--err)}.term .l.cmd{color:#7dd3fc}.term .l.out{color:#d6d8de}.term .l.info{color:#9a9da6}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.chips button{padding:7px 12px;font-size:13px}
