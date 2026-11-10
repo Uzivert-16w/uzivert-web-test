@@ -27,6 +27,12 @@
         <label for="bv-no">Notas</label><input id="bv-no" maxlength="500" placeholder="Qué es o qué cambió">
         <label for="bv-code">Script completo</label><textarea class="code-ed" id="bv-code" spellcheck="false"></textarea>
         <label for="bv-file">O subir un archivo .lua / .txt</label><input id="bv-file" type="file" accept=".lua,.txt,text/plain">
+        <div id="bv-pub"><label for="bv-slug">Loader de la página (como GitHub, pero con tu loader)</label>
+          <input id="bv-slug" maxlength="40" placeholder="nombre-del-loader (ej: duelos-prueba)" autocapitalize="off">
+          <div class="row" style="margin-top:8px"><button class="ghost" id="bv-pubbtn" type="button">Publicar loader</button><button class="ghost hide" id="bv-unpub" type="button">Despublicar</button></div>
+          <pre class="ls hide" id="bv-loader" style="margin-top:8px;white-space:pre-wrap;word-break:break-all"></pre>
+          <div class="row hide" id="bv-loaderrow" style="margin-top:6px"><button class="ghost" id="bv-lcopy" type="button">Copiar loader</button></div>
+          <p style="margin-top:6px">Solo se abre con el loader desde Roblox. No sale en la lista pública. Cada vez que guardas aquí, el loader se actualiza solo.</p></div>
         <div id="bv-vers" class="hide"><label for="bv-vsel">Versiones anteriores</label><select id="bv-vsel"></select></div>
         <div class="row"><button id="bv-save">Guardar</button><button class="ghost" id="bv-dl-btn">Descargar</button><button class="ghost" id="bv-copy">Copiar</button><button class="danger" id="bv-del">Borrar</button><button class="ghost" id="bv-x">Cerrar</button></div>
         <div class="msg" id="bv-m"></div></div>
@@ -59,7 +65,7 @@
         <div class="two"><div><label for="e-game">Juego</label><input id="e-game" maxlength="60"></div><div><label for="e-desc">Descripción</label><input id="e-desc" maxlength="300"></div></div>
         <div class="two"><div><label for="e-logo">Logo del juego (link https o ID del juego)</label><input id="e-logo" maxlength="300" placeholder="Ej: 142823291 o https://..."></div><div><label for="e-verif">¿Necesita verificación?</label><select id="e-verif"><option value="si">Sí, solo verificados</option><option value="no">No, cualquiera puede copiarlo</option></select></div></div>
         <label for="e-sit">Estado del script (se ve en la página Estado)</label><select id="e-sit"><option value="ok">Funcionando</option><option value="mant">En mantenimiento</option><option value="caido">No funciona</option></select>
-        <label for="e-estado">Estado</label><select id="e-estado"><option value="activo">Activo (disponible por link)</option><option value="oculto">Oculto (el link da 404)</option></select>
+        <label for="e-estado">Estado</label><select id="e-estado"><option value="activo">Activo (disponible por link)</option><option value="enlace">Solo con enlace (no sale en la lista de la página)</option><option value="oculto">Oculto (el link da 404)</option></select>
         <label for="e-file">O subir un archivo .lua / .txt</label><input id="e-file" type="file" accept=".lua,.txt,text/plain">
       </details>
       <div id="e-link" class="hide"><label>Loadstring</label><pre class="ls" id="e-ls"></pre><div class="row" style="margin-top:8px"><button class="ghost" id="e-copy">Copiar loadstring</button></div></div>
