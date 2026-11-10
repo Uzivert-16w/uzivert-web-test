@@ -1258,9 +1258,9 @@ const bovSerial = (fn) => { const p = bovCola.then(fn, fn); bovCola = p.catch(()
 const bovIdx = async () => { try { return JSON.parse((await store.read('boveda/index.json')) || '[]'); } catch { return []; } };
 const bovSave = (l) => store.write('boveda/index.json', JSON.stringify(l));
 const BOV_ID = /^[a-f0-9]{12}$/;
-const bovMeta = (m) => ({ slug: m.slug || '', id: m.id, nombre: m.nombre, carpeta: m.carpeta || '', notas: m.notas || '', creado: m.creado, mod: m.mod, size: m.size, versiones: (m.vers || []).length, cifrado: !!m.cifrado });
-const bovCampos = (b) => ({ nombre: clean(b.nombre, 80), carpeta: clean(b.carpeta, 40), notas: clean(b.notas, 500), codigo: String(b.codigo == null ? '' : b.codigo) });
-app.get('/api/admin/boveda', adminOnly, async (req, res) => res.json({ cifrado: !!BOV_KEY, archivos: (await bovIdx()).map(bovMeta).sort((a, b) => (a.carpeta || '~').localeCompare(b.carpeta || '~') || a.nombre.localeCompare(b.nombre)) }));
+const bovMeta = (m) => ({ slug: m.slug || '', id: m.id, nombre: m.nombre, carpeta: m.carpeta || '', tipo: m.tipo === 'loader' ? 'loader' : 'script', notas: m.notas || '', creado: m.creado, mod: m.mod, size: m.size, versiones: (m.vers || []).length, cifrado: !!m.cifrado });
+const bovCampos = (b) => ({ tipo: b.tipo === 'loader' ? 'loader' : 'script', nombre: clean(b.nombre, 80), carpeta: clean(b.carpeta, 40), notas: clean(b.notas, 500), codigo: String(b.codigo == null ? '' : b.codigo) });
+app.get('/api/admin/boveda', adminOnly, async (req, res) => res.json({ cifrado: !!BOV_KEY, archivos: (await bovIdx()).map(bovMeta).sort((a, b) => (a.tipo === b.tipo ? 0 : a.tipo === 'loader' ? -1 : 1) || (a.carpeta || '~').localeCompare(b.carpeta || '~') || a.nombre.localeCompare(b.nombre)) }));
 app.get('/api/admin/boveda/:id', adminOnly, async (req, res) => {
   if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
   const m = (await bovIdx()).find((x) => x.id === req.params.id); if (!m) return res.status(404).json({ error: 'No existe.' });
@@ -1281,7 +1281,7 @@ app.post('/api/admin/boveda', adminOnly, (req, res) => bovSerial(async () => {
   if (!c.codigo.trim()) return res.status(400).json({ error: 'El script está vacío.' });
   if (c.codigo.length > 1_200_000) return res.status(400).json({ error: 'Es demasiado grande (máx 1.2 MB).' });
   const l = await bovIdx(); if (l.length >= 300) return res.status(400).json({ error: 'Llegaste al límite de 300 archivos.' });
-  const m = { id: crypto.randomBytes(6).toString('hex'), nombre: c.nombre, carpeta: c.carpeta, notas: c.notas, creado: Date.now(), mod: Date.now(), size: c.codigo.length, cifrado: !!BOV_KEY, vers: [], vn: 0 };
+  const m = { id: crypto.randomBytes(6).toString('hex'), nombre: c.nombre, tipo: c.tipo, carpeta: c.carpeta, notas: c.notas, creado: Date.now(), mod: Date.now(), size: c.codigo.length, cifrado: !!BOV_KEY, vers: [], vn: 0 };
   await store.write(`boveda/${m.id}.lua`, bovCifrar(c.codigo)); l.push(m); await bovSave(l); audit(req, 'bóveda: crear', m.nombre); res.json({ ok: true, id: m.id });
 }).catch((e) => res.status(500).json({ error: 'No se pudo guardar: ' + e.message })));
 app.put('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => {
@@ -1295,7 +1295,7 @@ app.put('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => 
     m.vn = (m.vn || 0) + 1; await store.write(`boveda/${m.id}.v${m.vn}.lua`, actual); m.vers = (m.vers || []).concat([{ v: m.vn, ts: m.mod, size: m.size }]);
     while (m.vers.length > 5) { const o = m.vers.shift(); try { await store.remove(`boveda/${m.id}.v${o.v}.lua`); } catch {} }
   }
-  Object.assign(m, { nombre: c.nombre, carpeta: c.carpeta, notas: c.notas, mod: Date.now(), size: c.codigo.length, cifrado: !!BOV_KEY });
+  Object.assign(m, { nombre: c.nombre, tipo: c.tipo, carpeta: c.carpeta, notas: c.notas, mod: Date.now(), size: c.codigo.length, cifrado: !!BOV_KEY });
   await store.write(`boveda/${m.id}.lua`, bovCifrar(c.codigo)); if (m.slug) await bovPublicar(m, c.codigo, req); await bovSave(l); audit(req, 'bóveda: editar', m.nombre + (m.slug ? ' (loader actualizado)' : '')); res.json({ ok: true, actualizado: !!m.slug });
 }).catch((e) => res.status(500).json({ error: 'No se pudo guardar: ' + e.message })));
 // Publicar un archivo de la bóveda como loader de la página (solo con enlace: no aparece en la lista pública)
