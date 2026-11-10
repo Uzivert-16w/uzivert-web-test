@@ -18,11 +18,12 @@
       <div class="card"><h3>Por script</h3><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>SCRIPT</th><th>TOTAL</th><th>HOY</th><th>7 DÍAS</th><th>ÚLTIMA</th></tr></thead><tbody id="rs-rows"></tbody></table></div><p id="rs-nota" style="margin-top:10px">Solo cuentan los loaders que salen de esta página (/s/nombre). Los loaders de Vercel y GitHub no pasan por aquí.</p></div>
     </div>
     <div class="tab hide" data-t="boveda">
-      <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3>Bóveda de scripts</h3><button id="bv-new">Nuevo archivo</button></div>
+      <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3>Bóveda de scripts</h3><span style="display:flex;gap:8px"><button id="bv-newl">Nuevo loader</button><button class="ghost" id="bv-news">Nuevo script</button></span></div>
         <p id="bv-info" style="margin:4px 0 10px">Aquí guardas tus scripts completos. Son privados: nunca se sirven públicamente.</p>
         <select id="bv-fil"><option value="">Todas las carpetas</option></select>
         <div class="sv-lista" id="bv-lista"></div></div>
       <div class="card hide" id="bv-ed"><h3 id="bv-t">Nuevo archivo</h3>
+        <label for="bv-tp">Tipo</label><select id="bv-tp"><option value="loader">Loader (el que pegan los usuarios)</option><option value="script">Script (el que ejecuta el loader)</option></select>
         <div class="two"><div><label for="bv-n">Nombre</label><input id="bv-n" maxlength="80" placeholder="Ej: Duelos completo v2.5"></div><div><label for="bv-c">Carpeta</label><input id="bv-c" maxlength="40" list="bv-dl" placeholder="Ej: Duelos"><datalist id="bv-dl"></datalist></div></div>
         <label for="bv-no">Notas</label><input id="bv-no" maxlength="500" placeholder="Qué es o qué cambió">
         <label for="bv-code">Script completo</label><textarea class="code-ed" id="bv-code" spellcheck="false"></textarea>
