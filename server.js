@@ -984,7 +984,7 @@ app.get('/s/:slug', async (req, res) => {
       console.warn('[seguridad] IP bloqueada por insistir en /s/' + req.params.slug + ':', quien);
       postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien insistió en abrir un loader fuera de Roblox. Se bloqueó su IP por 1 hora.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: razon, inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }, { name: 'User-Agent', value: '`' + clean(req.headers['user-agent'], 150).replace(/`/g, "'") + '`' }], timestamp: new Date().toISOString() }] }).catch(() => {});
     }
-    if (/text\/html/i.test(String(req.headers.accept || ''))) return res.type('html').send(PAGINA_NO);
+    if (/text\/html/i.test(String(req.headers.accept || ''))) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(PAGINA_NO); }
     return res.type('text/plain; charset=utf-8').send('-- No estas autorizado');
   }
   res.type('text/plain; charset=utf-8').setHeader('Cache-Control', 'no-store');
