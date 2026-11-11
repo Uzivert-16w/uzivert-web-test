@@ -675,7 +675,7 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   else { try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); } }
   const ali = b.alias === undefined ? { alias: (previo && previo.alias) || '' } : checkAlias(b.alias, slug, await loadIndex());
   if (ali.error) return res.status(400).json({ error: ali.error });
-  const meta = { slug, alias: ali.alias, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', situacion: ['ok', 'mant', 'caido'].includes(b.situacion) ? b.situacion : (previo && previo.situacion) || 'ok', cartel: ['grande', 'costado'].includes(b.cartel) ? b.cartel : (previo && previo.cartel) || 'grande', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: ['oculto', 'enlace'].includes(b.estado) ? b.estado : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
+  const meta = { slug, alias: ali.alias, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', situacion: ['ok', 'mant', 'caido'].includes(b.situacion) ? b.situacion : (previo && previo.situacion) || 'ok', cartel: ['grande', 'costado'].includes(b.cartel) ? b.cartel : (previo && previo.cartel) || 'grande', interno: !!(previo && previo.interno), name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: ['oculto', 'enlace'].includes(b.estado) ? b.estado : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
   let aviso = '';
   try {
     await store.write(`scripts/${slug}.lua`, code);
@@ -1382,7 +1382,7 @@ app.put('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => 
 // Publicar un archivo de la bóveda como loader de la página (solo con enlace: no aparece en la lista pública)
 async function bovPublicar(m, code, req) {
   const prev = (await loadIndex()).find((x) => x.slug === m.slug) || {};
-  const meta = Object.assign({ logo: '', situacion: 'ok', game: m.carpeta || '', version: '', description: '' }, prev, { slug: m.slug, name: m.nombre, verificacion: 'no', alias: m.alias !== undefined ? m.alias : (prev.alias || ''), estado: prev.estado === 'activo' ? 'activo' : 'enlace', bovedaId: m.id, updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) });
+  const meta = Object.assign({ logo: '', situacion: 'ok', game: m.carpeta || '', version: '', description: '' }, prev, { slug: m.slug, name: m.nombre, verificacion: 'no', alias: m.alias !== undefined ? m.alias : (prev.alias || ''), estado: prev.estado === 'activo' ? 'activo' : 'enlace', bovedaId: m.id, interno: m.tipo !== 'loader', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) });
   await store.write(`scripts/${m.slug}.lua`, code);
   const l = (await loadIndex()).filter((x) => x.slug !== m.slug); l.push(meta); l.sort((a, c) => a.name.localeCompare(c.name));
   await saveIndex(l); cache.delete(m.slug);
