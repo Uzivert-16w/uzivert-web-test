@@ -731,6 +731,12 @@ app.get('/api/admin/verificados', adminOnly, async (req, res) => res.json(await 
 
 // ---------- LISTA PUBLICA DE SCRIPTS ----------
 const baseUrl = (req) => (env.PUBLIC_URL || `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers.host}`).replace(/\/$/, '');
+// Estado rapido de los scripts (solo el indice, sin leer codigo): lo usa el bot de Discord.
+app.get('/api/estado-scripts', async (req, res) => {
+  noStore(res);
+  try { res.json({ scripts: (await loadIndex()).filter((x) => x.estado === 'activo').map((x) => ({ slug: x.slug, name: x.name, situacion: x.situacion || 'ok' })) }); }
+  catch { res.status(500).json({ error: 'No se pudo leer' }); }
+});
 app.get('/api/scripts', async (req, res) => {
   noStore(res);
   try {
