@@ -731,6 +731,17 @@ app.get('/api/admin/verificados', adminOnly, async (req, res) => res.json(await 
 
 // ---------- LISTA PUBLICA DE SCRIPTS ----------
 const baseUrl = (req) => (env.PUBLIC_URL || `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers.host}`).replace(/\/$/, '');
+// Estado de UN script por su ruta o slug (lo consultan los loaders cada 10 s para cerrar el script si pasa a mantenimiento).
+app.get('/api/estado-ruta', async (req, res) => {
+  noStore(res);
+  try {
+    const r = String(req.query.ruta || '').trim().replace(/^\/+|\/+$/g, '').toLowerCase().slice(0, 200);
+    const l = await loadIndex();
+    const x = l.find((y) => y.alias && String(y.alias).toLowerCase() === r) || l.find((y) => y.slug === r);
+    if (!x || (x.estado !== 'activo' && x.estado !== 'enlace')) return res.status(404).json({ error: 'No existe' });
+    res.json({ situacion: x.situacion || 'ok' });
+  } catch { res.status(500).json({ error: 'No se pudo leer' }); }
+});
 // Estado rapido de los scripts (solo el indice, sin leer codigo): lo usa el bot de Discord.
 app.get('/api/estado-scripts', async (req, res) => {
   noStore(res);
@@ -1077,7 +1088,7 @@ app.get('/s/:slug', async (req, res) => {
   try {
     const meta = (await loadIndex()).find((s) => s.slug === slug);
     if (!meta || (meta.estado !== 'activo' && meta.estado !== 'enlace')) return res.status(404).send('-- no encontrado');
-    if (meta.situacion === 'mant') return res.send(meta.cartel === 'costado' ? luaMantCostado(meta.name, loaderUrl(baseUrl(req), meta)) : luaMantenimiento(loaderUrl(baseUrl(req), meta)));
+    if (meta.situacion === 'mant' || meta.situacion === 'caido') return res.send(meta.cartel === 'costado' ? luaMantCostado(meta.name, loaderUrl(baseUrl(req), meta)) : luaMantenimiento(loaderUrl(baseUrl(req), meta)));
     if (!isAdmin(req)) contarEjec(slug, quien);
     const c = cache.get(slug);
     if (c && Date.now() - c.t < 30e3) return res.send(c.code);
