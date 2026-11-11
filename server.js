@@ -209,8 +209,9 @@ function vxPrompt() {
 SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Uzivert es el creador de Uzivert Hub, un hub de scripts para Roblox, desde Paraguay. El proyecto lleva más o menos 1 mes en desarrollo: todavía es pequeño y le falta mucho por mejorar.
 - Hay DOS tipos de scripts:
-  1) El HUB GRANDE: trae 5 juegos en uno y necesita verificación por seguridad. Sus juegos son MM2 (Murder Mystery 2, el principal), MMV (Murder Mystery V), Duelos Latam, Distrito de Violencia y Prison Life (en Prison Life la sección de armas está en mantenimiento).
-  2) Los hubs APARTE, que NO necesitan verificación: Duelos Murderer vs Sheriffs y el script Universal.
+  1) El HUB GRANDE (se llama "Uzivert Hub | Oficial"): trae varios juegos en uno y YA NO necesita verificación: cualquiera lo puede usar. Sus juegos son MM2 (Murder Mystery 2, el principal), MMV (Murder Mystery V), Duelos Latam, Distrito de Violencia y Prison Life (en Prison Life la sección de armas está en mantenimiento).
+  2) Los hubs APARTE: Duelos Murderer vs Sheriffs y el script Universal. Tampoco necesitan verificación.
+  La verificación es OPCIONAL para todos: sirve para que al ejecutar el script te salga un cartel de bienvenida y tener tu perfil y el rol de Verificado. Nunca digas que hay que verificarse para usar un script. Sí hay baneos para quien abuse, y al ejecutar se registra el usuario de Roblox por seguridad.
 - Para qué sirven: ayudan a jugar, tanto a jugadores nuevos como antiguos. No son para abusar. Ningún script está garantizado: se intenta que todos funcionen siempre, pero a veces fallan o necesitan actualización. Nunca prometas que funcionan siempre, ni digas que son seguros o indetectables.
 - Hay un servidor de Discord oficial, un bot (Vertix también vive ahí), una API y esta página web (uzivert-web.onrender.com).
 - La página tiene: Inicio, Verificar, Scripts, Foro, Updates, Estado del servicio, Preguntas frecuentes, Soporte, Donaciones (próximamente), Creador, Créditos y Términos.
@@ -219,7 +220,7 @@ VERIFICACIÓN (reglas fijas): nunca pidas ni aceptes contraseña, PIN, correo ni
 
 SOPORTE: si alguien dice que un script no funciona, pregúntale qué juego es y qué pasa (qué error o qué no carga). Ayuda con lo que sepas. Si no se resuelve o no sabes la respuesta, no inventes: mándalo a la sección Soporte (action go soporte) o al Discord, y menciona que la página Estado muestra si hay problemas del servicio.
 
-SCRIPTS: nunca inventes loadstrings ni enlaces de scripts. El sistema entrega por su cuenta SOLO el loader de Duelos (Murderer vs Sheriffs) y el Universal. El loader del hub grande exige verificar la cuenta en la página (sección Verificar) y tú no lo entregas.
+SCRIPTS: nunca inventes loadstrings ni enlaces de scripts. El sistema entrega por su cuenta los loaders que da la página (Uzivert Hub, Duelos, Universal...): si alguien pide un script, el sistema se lo da; tú no escribas ningún link.
 
 FOTOS: si el usuario envía una imagen, descríbela o respóndele sobre ella.
 
@@ -407,12 +408,13 @@ const VX_LOADERS = {
 };
 const vxNorm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const vxBase = (req) => (env.PUBLIC_URL || (req.headers && req.headers.host ? baseUrl(req) : 'https://uzivert-web.onrender.com')).replace(/\/$/, '');
-async function vxScripts(t, dc, req) {                                 // devuelve {say, action} si piden un script/loader, o null
+async function vxScripts(t, dc, req, hist) {                                 // devuelve {say, action} si piden un script/loader, o null
   const q = vxNorm(t);
   const L = (x) => '`' + x + '`';                                  // siempre entre comillas invertidas (código en línea)
-  const pide = /\b(script|scripts|loader|loaders|loadstring|cargador)\b/.test(q);
+  const enCtx = /(loaders? disponibles|los que si tengo|pideme(lo)? por su nombre|loadstring)/.test(vxNorm(hist));   // venia hablando de loaders
+  const pide = /\b(script|scripts|loader|loaders|loadstring|cargador)\b/.test(q) || (enCtx && q.length < 60);
   const verbo = /\b(dame|dar|dan|da|pasa|pasame|pasar|mand[ae]|manda|quiero|necesito|tienes|tienen|donde|como consigo|como obtengo|link|enlace|cual|cuales|lista|todos)\b/.test(q);
-  const juegoTxt = /\b(duelos?|duels?|latam|universal|mm2|mmv|murder|prison|distrito|violencia|hub)\b/.test(q);
+  const juegoTxt = /\b(duelos?|duels?|latam|universal|mm2|mmv|murder|prison|distrito|violencia|hub|oficial|juegos)\b/.test(q);
   if (!pide || !(verbo || juegoTxt)) return null;
   let lista = [];
   try { lista = (await loadIndex()).filter((x) => x.estado === 'activo'); } catch {}
@@ -427,8 +429,9 @@ async function vxScripts(t, dc, req) {                                 // devuel
   }
   const palabras = (x) => vxNorm((x.name || '') + ' ' + (x.slug || '') + ' ' + (x.juego || x.game || '')).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !['hub', 'uzivert', 'script', 'scripts', 'para', 'del', 'los', 'las'].includes(w));
   // 1) el nombre completo ("uzivert hub") o sus apodos ("hub grande", "5 juegos"): gana el nombre mas largo que aparezca
-  const grande = /\b(hub (grande|completo|principal|oficial)|(5|cinco) juegos)\b/.test(q);
-  const porNombre = lista.filter((x) => { const n = vxNorm(x.name).trim(); return n && (q.includes(n) || (grande && /uzivert hub/.test(n) && !/\b(duelos?|universal|latam)\b/.test(n))); });
+  const grande = /\b(hub (grande|completo|principal|oficial)|(\d+|cuatro|cinco|seis) juegos|oficial)\b/.test(q) || (/\buzivert hub\b/.test(q) && !/\b(duelos?|universal|latam)\b/.test(q));
+  const esGrande = (x) => /uzivert hub/.test(vxNorm(x.name)) && !/\b(duelos?|universal|latam)\b/.test(vxNorm(x.name));
+  const porNombre = lista.filter((x) => { const n = vxNorm(x.name).trim(); return n && (q.includes(n) || (grande && esGrande(x))); });
   const mx = Math.max(0, ...porNombre.map((x) => vxNorm(x.name).trim().length));
   const exactos = porNombre.filter((x) => vxNorm(x.name).trim().length === mx);
   // 2) si no, por palabras sueltas (juego, nombre)
@@ -454,7 +457,7 @@ const vertixHandler = async (req, res) => {
   const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
-  if (!imagen) { const sc = (await vxScripts(texto, !!req._vxKeys, req)) || vxVerif(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
+  if (!imagen) { const sc = (await vxScripts(texto, !!req._vxKeys, req, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' '))) || vxVerif(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
   if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
   let fotoGastada = false;
   if (imagen) {
