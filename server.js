@@ -399,24 +399,45 @@ function vxVerif(t, dc, ctx) {
   return { say: pasos, action: { type: 'verify' } };
 }
 
-// Loaders que Vertix puede entregar (solo Duelos y Universal). El del hub completo exige verificación y NO se entrega.
+// Loaders que Vertix entrega: los mismos que da la pagina (scripts publicados con estado "activo").
+// Si la pagina todavia no tiene ninguno de Duelos/Universal, usa los antiguos como respaldo.
 const VX_LOADERS = {
   duelos: env.VX_LOADER_DUELOS || 'loadstring(game:HttpGet("https://duelos-api.vercel.app/loader"))()',
   universal: env.VX_LOADER_UNIVERSAL || 'loadstring(game:HttpGet("https://uzivert-universal-api.vercel.app/loader"))()',
 };
-function vxScripts(t, dc) {                                            // devuelve {say, action} si piden un script/loader, o null
-  const q = String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const vxNorm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const vxBase = (req) => (env.PUBLIC_URL || (req.headers && req.headers.host ? baseUrl(req) : 'https://uzivert-web.onrender.com')).replace(/\/$/, '');
+async function vxScripts(t, dc, req) {                                 // devuelve {say, action} si piden un script/loader, o null
+  const q = vxNorm(t);
   const L = (x) => '`' + x + '`';                                  // siempre entre comillas invertidas (código en línea)
-  const pide = /\b(script|scripts|loader|loadstring|cargador)\b/.test(q);
-  const duelos = /\b(duelos?|duels?|latam)\b/.test(q), uni = /\buniversal\b/.test(q);
-  const otro = /\b(mm2|mmv|murder|prison|distrito|violencia|hub completo|5 juegos|cinco juegos|todos)\b/.test(q);
-  const verbo = /\b(dame|dar|dan|da|pasa|pasame|pasar|mand[ae]|manda|quiero|necesito|tienes|tienen|donde|como consigo|como obtengo|link|enlace|cual)\b/.test(q);
-  if (!pide || !(duelos || uni || otro || verbo)) return null;
-  if (/\blatam\b/.test(q)) return { say: 'Duelos Latam viene en el hub grande, que necesita verificación por seguridad. Verifica tu cuenta de Roblox en la sección Verificar de la página. Si lo que quieres es el script de Duelos Murderer vs Sheriffs, ese sí te lo doy: pídeme "script de duelos".', action: { type: 'go', page: 'verificar' } };
-  if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos (Murderer vs Sheriffs):\n' + L(VX_LOADERS.duelos) + '\nUniversal:\n' + L(VX_LOADERS.universal), action: null };
-  if (duelos && !otro) return { say: 'Aquí tienes el loader de Duelos (Murderer vs Sheriffs). Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.duelos), action: null };
-  if (uni && !otro) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.universal), action: null };
-  return { say: 'Yo solo puedo darte aquí los loaders de Duelos (Murderer vs Sheriffs) y del Universal, que no necesitan verificación. Pídeme uno diciendo, por ejemplo, "script de duelos" o "script universal". Los demás juegos (MM2, MMV, Duelos Latam, Distrito de Violencia y Prison Life) vienen en el hub grande, que se consigue verificando tu cuenta en la sección Verificar de la página.', action: { type: 'go', page: 'verificar' } };
+  const pide = /\b(script|scripts|loader|loaders|loadstring|cargador)\b/.test(q);
+  const verbo = /\b(dame|dar|dan|da|pasa|pasame|pasar|mand[ae]|manda|quiero|necesito|tienes|tienen|donde|como consigo|como obtengo|link|enlace|cual|cuales|lista|todos)\b/.test(q);
+  const juegoTxt = /\b(duelos?|duels?|latam|universal|mm2|mmv|murder|prison|distrito|violencia|hub)\b/.test(q);
+  if (!pide || !(verbo || juegoTxt)) return null;
+  let lista = [];
+  try { lista = (await loadIndex()).filter((x) => x.estado === 'activo'); } catch {}
+  const base = vxBase(req);
+  const linea = (x) => (x.nombre || x.name) + (x.situacion === 'mant' ? ' (en mantenimiento por ahora)' : '') + ':\n' + L('loadstring(game:HttpGet("' + loaderUrl(base, x) + '"))()');
+  if (!lista.length) {                                             // la pagina aun no tiene scripts publicados: respaldo antiguo
+    const duelos = /\b(duelos?|duels?)\b/.test(q), uni = /\buniversal\b/.test(q);
+    if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos (Murderer vs Sheriffs):\n' + L(VX_LOADERS.duelos) + '\nUniversal:\n' + L(VX_LOADERS.universal), action: null };
+    if (duelos) return { say: 'Aquí tienes el loader de Duelos (Murderer vs Sheriffs). Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.duelos), action: null };
+    if (uni) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.universal), action: null };
+    return { say: 'Por ahora puedo darte los loaders de Duelos (Murderer vs Sheriffs) y del Universal. Pídeme, por ejemplo, "script de duelos" o "script universal".', action: null };
+  }
+  const palabras = (x) => vxNorm((x.name || '') + ' ' + (x.slug || '') + ' ' + (x.juego || x.game || '')).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !['hub', 'uzivert', 'script', 'scripts', 'para', 'del', 'los', 'las'].includes(w));
+  // 1) el nombre completo ("uzivert hub") o sus apodos ("hub grande", "5 juegos"): gana el nombre mas largo que aparezca
+  const grande = /\b(hub (grande|completo|principal|oficial)|(5|cinco) juegos)\b/.test(q);
+  const porNombre = lista.filter((x) => { const n = vxNorm(x.name).trim(); return n && (q.includes(n) || (grande && /uzivert hub/.test(n) && !/\b(duelos?|universal|latam)\b/.test(n))); });
+  const mx = Math.max(0, ...porNombre.map((x) => vxNorm(x.name).trim().length));
+  const exactos = porNombre.filter((x) => vxNorm(x.name).trim().length === mx);
+  // 2) si no, por palabras sueltas (juego, nombre)
+  const con = exactos.length ? exactos : lista.filter((x) => palabras(x).some((w) => new RegExp('\\b' + w + '\\b').test(q)));
+  const pedidos = con.length && !/\b(todos|todo|lista|cuales|disponibles)\b/.test(q) ? con : [];
+  if (pedidos.length) return { say: (pedidos.length === 1 ? 'Aquí tienes el loader. Cópialo y pégalo en tu ejecutor dentro del juego:\n' : 'Estos son los loaders. Cópialos y pégalos en tu ejecutor dentro del juego:\n') + pedidos.map((x) => linea({ nombre: x.name, ...x })).join('\n'), action: null };
+  const nombres = lista.map((x) => x.name).join(', ');
+  if (juegoTxt && !con.length) return { say: 'Ese script no está disponible por ahora. Los que sí tengo son: ' + nombres + '. Pídemelo por su nombre.', action: null };
+  return { say: 'Estos son los loaders disponibles. Cópialos y pégalos en tu ejecutor dentro del juego:\n' + lista.map((x) => linea({ nombre: x.name, ...x })).join('\n'), action: null };
 }
 
 // Modelos pequeños a veces prometen el código ("aquí tienes el script") y no lo escriben. Se detecta y se reintenta.
@@ -433,7 +454,7 @@ const vertixHandler = async (req, res) => {
   const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
-  if (!imagen) { const sc = vxScripts(texto, !!req._vxKeys) || vxVerif(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
+  if (!imagen) { const sc = (await vxScripts(texto, !!req._vxKeys, req)) || vxVerif(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
   if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
   let fotoGastada = false;
   if (imagen) {
