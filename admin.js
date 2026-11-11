@@ -208,19 +208,19 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
     });
   }
   $('bv-fil').onchange = pinta;
-  function mostrarLoader(slug, loader) {
-    $('bv-slug').value = slug || ''; $('bv-slug').disabled = false;
+  function mostrarLoader(slug, loader, alias) {
+    $('bv-alias').value = alias || ''; $('bv-slug').value = slug || ''; $('bv-slug').disabled = false;
     $('bv-loader').classList.toggle('hide', !loader); $('bv-loader').textContent = loader || '';
     $('bv-loaderrow').classList.toggle('hide', !loader); $('bv-unpub').classList.toggle('hide', !slug);
     $('bv-pubbtn').textContent = slug ? 'Actualizar nombre / republicar' : 'Publicar loader';
     $('bv-pub').classList.toggle('hide', !cur);
   }
-  function limpia() { cur = null; ['bv-n', 'bv-c', 'bv-no', 'bv-code', 'bv-slug'].forEach((i) => ($(i).value = '')); $('bv-tp').value = 'script'; mostrarLoader('', ''); $('bv-vers').classList.add('hide'); $('bv-m').className = 'msg'; }
+  function limpia() { cur = null; ['bv-n', 'bv-c', 'bv-no', 'bv-code', 'bv-slug', 'bv-alias'].forEach((i) => ($(i).value = '')); $('bv-tp').value = 'script'; mostrarLoader('', ''); $('bv-vers').classList.add('hide'); $('bv-m').className = 'msg'; }
   async function abre(id) {
     try {
       const r = await api('/api/admin/boveda/' + id); cur = id; $('bv-n').value = r.nombre; $('bv-c').value = r.carpeta; $('bv-tp').value = r.tipo || 'script'; $('bv-no').value = r.notas; $('bv-code').value = r.codigo; $('bv-t').textContent = 'Editar: ' + r.nombre;
       const vs = $('bv-vsel'); vs.textContent = ''; vs.append(new Option('Elige una versión...', '')); (r.vers || []).slice().reverse().forEach((v) => vs.append(new Option('Versión ' + v.v + ' | ' + fmtF(v.ts), v.v))); $('bv-vers').classList.toggle('hide', !(r.vers || []).length);
-      mostrarLoader(r.slug, r.loader); $('bv-ed').classList.remove('hide'); $('bv-del').classList.remove('hide'); $('bv-dl-btn').classList.remove('hide'); $('bv-m').className = 'msg'; pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' });
+      mostrarLoader(r.slug, r.loader, r.alias); $('bv-ed').classList.remove('hide'); $('bv-del').classList.remove('hide'); $('bv-dl-btn').classList.remove('hide'); $('bv-m').className = 'msg'; pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' });
     } catch (e) { m(e.message, false); }
   }
   const bvNuevo = (tp) => { limpia(); $('bv-tp').value = tp; $('bv-pub').classList.add('hide'); $('bv-t').textContent = tp === 'loader' ? 'Nuevo loader' : 'Nuevo script'; $('bv-ed').classList.remove('hide'); $('bv-del').classList.add('hide'); $('bv-dl-btn').classList.add('hide'); pinta(); $('bv-ed').scrollIntoView({ behavior: 'smooth' }); };
@@ -243,7 +243,7 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
   $('bv-pubbtn').onclick = async () => {
     if (!cur) { m('Primero guarda el archivo.', false); return; }
     const slug = $('bv-slug').value.trim().toLowerCase(); if (!slug) { m('Escribe un nombre para el loader.', false); return; }
-    try { const r = await api(`/api/admin/boveda/${cur}/publicar`, { method: 'POST', body: { slug } }); mostrarLoader(r.slug, r.loader); m('Loader publicado.', true); bvLista(); } catch (e) { m(e.message, false); }
+    try { const r = await api(`/api/admin/boveda/${cur}/publicar`, { method: 'POST', body: { slug, alias: $('bv-alias').value } }); mostrarLoader(r.slug, r.loader, r.alias); m('Loader publicado.', true); bvLista(); } catch (e) { m(e.message, false); }
   };
   $('bv-unpub').onclick = async () => { if (!cur || !confirm('¿Despublicar el loader? El link dejará de funcionar.')) return; try { await api(`/api/admin/boveda/${cur}/despublicar`, { method: 'POST', body: {} }); mostrarLoader('', ''); m('Loader despublicado.', true); bvLista(); } catch (e) { m(e.message, false); } };
   $('bv-lcopy').onclick = (e) => copyText($('bv-loader').textContent, e.target);
