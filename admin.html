@@ -30,6 +30,8 @@
         <label for="bv-file">O subir un archivo .lua / .txt</label><input id="bv-file" type="file" accept=".lua,.txt,text/plain">
         <div id="bv-pub"><label for="bv-slug">Loader de la página (como GitHub, pero con tu loader)</label>
           <input id="bv-slug" maxlength="40" placeholder="nombre-del-loader (ej: duelos-prueba)" autocapitalize="off">
+          <label for="bv-alias" style="margin-top:8px">Ruta personalizada (opcional, así se ve el link)</label>
+          <input id="bv-alias" maxlength="200" placeholder="api/duelos/auth/UzivertHub" autocapitalize="off">
           <div class="row" style="margin-top:8px"><button class="ghost" id="bv-pubbtn" type="button">Publicar loader</button><button class="ghost hide" id="bv-unpub" type="button">Despublicar</button></div>
           <pre class="ls hide" id="bv-loader" style="margin-top:8px;white-space:pre-wrap;word-break:break-all"></pre>
           <div class="row hide" id="bv-loaderrow" style="margin-top:6px"><button class="ghost" id="bv-lcopy" type="button">Copiar loader</button></div>
