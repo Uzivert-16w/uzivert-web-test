@@ -21,8 +21,9 @@ function td(text) { const t = document.createElement('td'); t.textContent = text
 async function refresh() {
   const list = await api('/api/admin/scripts'); known = list.map((s) => s.slug);
   const body = $('rows'); body.textContent = '';
-  $('empty').classList.toggle('hide', list.length > 0);
-  list.forEach((s) => {
+  const vis = list.filter((s) => !s.interno);   // los scripts que ejecutan los loaders (Boveda > Scripts) no se listan aca
+  $('empty').classList.toggle('hide', vis.length > 0);
+  vis.forEach((s) => {
     const tr = document.createElement('tr');
     tr.append(td(s.name), td(s.game), td(s.version));
     const st = document.createElement('td'); const tag = document.createElement('span'); tag.className = 'tag' + (s.estado === 'activo' ? '' : ' off'); tag.textContent = s.estado; st.append(tag); tr.append(st);
