@@ -1492,6 +1492,19 @@ async function dcEsAdmin(msg) {
   if (!msg.guild_id) return false;
   try { const g = await dcApi('GET', '/guilds/' + msg.guild_id); return g && String(g.owner_id) === id; } catch { return false; }
 }
+const dcScriptRe = /^scripts?\s+(lock|bloquear|mantenimiento|unlock|desbloquear|funcionando)\b/i;
+async function dcScriptLock(msg, botId, cerrar) {                  // pone TODOS los scripts de la pagina en mantenimiento (o los vuelve a Funcionando)
+  const enviar = (c) => dcApi('POST', `/channels/${msg.channel_id}/messages`, { content: c, allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }).catch(() => {});
+  if (!msg.guild_id) return enviar('Ese comando solo funciona dentro de un servidor.');
+  if (!(await dcEsAdmin(msg))) return enviar('No tienes permiso para eso.');
+  const l = await loadIndex();
+  const nuevo = cerrar ? 'mant' : 'ok';
+  const cambia = l.filter((x) => (x.situacion || 'ok') !== nuevo).length;
+  l.forEach((x) => { x.situacion = nuevo; });
+  await saveIndex(l);
+  audit(null, 'scripts: ' + (cerrar ? 'todos en mantenimiento' : 'todos funcionando'), 'discord ' + msg.author.id + ' (' + cambia + ' de ' + l.length + ')');
+  await enviar(cerrar ? '🔒' : '🔓');
+}
 async function dcLock(msg, cerrar) {
   const gid = msg.guild_id, ch = msg.channel_id;
   const c = await dcApi('GET', '/channels/' + ch);
@@ -1591,13 +1604,15 @@ async function dcComando(msg, botId, cmd, resto) {                 // devuelve t
   return true;
 }
 const DC_AYUDA = { embeds: [{ title: 'Comandos de Vertix', color: 0x5865f2, description:
-  'Escribe **Vertix** seguido de lo que necesites.\n\n`Vertix <pregunta>`  Pregúntame lo que quieras sobre Uzivert Hub o lo que sea.\n`Vertix user <usuario Roblox>`  Muestra el perfil: verificación en la página, inventario, amigos y más.\n`Vertix comandos`  Muestra esta lista.\n\n**Solo admins**\n`Vertix lock`  Bloquea el canal.\n`Vertix unlock`  Lo desbloquea.\n`Vertix ban <@usuario o ID>`  Banea del servidor.\n`Vertix unban <ID>`  Quita el baneo.', footer: { text: 'Vertix | Uzivert Hub' } }] };
+  'Escribe **Vertix** seguido de lo que necesites.\n\n`Vertix <pregunta>`  Pregúntame lo que quieras sobre Uzivert Hub o lo que sea.\n`Vertix user <usuario Roblox>`  Muestra el perfil: verificación en la página, inventario, amigos y más.\n`Vertix comandos`  Muestra esta lista.\n\n**Solo admins**\n`Vertix lock`  Bloquea el canal.\n`Vertix unlock`  Lo desbloquea.\n`Vertix ban <@usuario o ID>`  Banea del servidor.\n`Vertix unban <ID>`  Quita el baneo.\n`Vertix script lock`  Pone TODOS los scripts de la página en mantenimiento.\n`Vertix script unlock`  Los vuelve a poner en funcionamiento.', footer: { text: 'Vertix | Uzivert Hub' } }] };
 async function dcMensaje(msg, botId) {
   if (!msg || !msg.author || msg.author.bot || !msg.content && !(msg.attachments || []).length) return;
   if (DC_CANALES.length && !DC_CANALES.includes(String(msg.channel_id))) return;
   const texto = dcTextoDe(msg, botId);
   if (texto === null) return;
   if (dcAyudaRe.test(texto.trim()) && !(msg.attachments || []).length) { await dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }, DC_AYUDA)); return; }
+  const ms = dcScriptRe.exec(texto.trim());
+  if (ms && !(msg.attachments || []).length) { try { await dcScriptLock(msg, botId, /^(lock|bloquear|mantenimiento)$/i.test(ms[1])); } catch (e) { console.error('[discord] script lock', e.message); } return; }
   const mc = dcCmdRe.exec(texto.trim());
   if (mc && !(msg.attachments || []).length && await dcComando(msg, botId, mc[1], mc[2].trim())) return;
   const dm = !msg.guild_id;
