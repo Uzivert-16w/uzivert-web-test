@@ -996,8 +996,16 @@ task.spawn(function()
     local ok, res = pcall(function() return game:HttpGet(UZ_URL .. "?p=" .. os.time()) end)
     if ok and type(res) == "string" and #res > 0 and not res:find("UZIVERT_MANT", 1, true) then
       pcall(function()
-        local root = (gethui and gethui()) or game:GetService("CoreGui")
-        for _, n in ipairs({"UzivertMantenimiento", "UzivertAviso"}) do local o = root:FindFirstChild(n); if o then o:Destroy() end end
+        local roots = {game:GetService("CoreGui")}
+        if gethui then local okh, h = pcall(gethui); if okh and h then table.insert(roots, h) end end
+        local lp = game:GetService("Players").LocalPlayer
+        if lp and lp:FindFirstChild("PlayerGui") then table.insert(roots, lp.PlayerGui) end
+        for _, root in ipairs(roots) do
+          for _, n in ipairs({"UzivertMantenimiento", "UzivertAviso"}) do
+            local o = root:FindFirstChild(n)
+            while o do pcall(function() o:Destroy() end); o = root:FindFirstChild(n) end
+          end
+        end
       end)
       local fn = loadstring(res)
       if fn then fn() end
