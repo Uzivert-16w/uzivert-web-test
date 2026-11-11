@@ -579,8 +579,30 @@ app.post('/api/salir', needJson, (req, res) => { setCookie(res, 'uz_user', '', 0
 // ---------- SCRIPTS (panel privado) ----------
 const SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
 let indexCache = null;
-async function loadIndex() { if (!indexCache) { try { indexCache = JSON.parse((await store.read('scripts/index.json')) || '[]'); } catch { indexCache = []; } } return indexCache; }
-async function saveIndex(list) { await store.write('scripts/index.json', JSON.stringify(list, null, 2)); indexCache = list; }
+// Ruta personalizada del loader (ej: api/duelos/auth/UzivertHub): se sirve en https://sitio/<ruta> ademas de /s/<slug>.
+const ALIAS = /^[A-Za-z0-9_-]{1,40}(\/[A-Za-z0-9_-]{1,40}){1,4}$/;
+const ALIAS_RESERVADO = /^(s|admin|api\/admin)(\/|$)/i;
+let aliasMap = new Map();
+const rebuildAlias = (l) => { aliasMap = new Map((l || []).filter((x) => x.alias).map((x) => [String(x.alias).toLowerCase(), x.slug])); };
+const loaderUrl = (base, x) => base + '/' + (x.alias ? x.alias : 's/' + x.slug);
+function checkAlias(raw, slug, list) {          // devuelve { alias } o { error }
+  const a = String(raw == null ? '' : raw).trim().replace(/^\/+|\/+$/g, '');
+  if (!a) return { alias: '' };
+  if (!ALIAS.test(a) || ALIAS_RESERVADO.test(a)) return { error: 'Ruta inválida: usa 2 a 5 partes con letras, números, - o _ separadas por / (ej: api/duelos/auth/UzivertHub).' };
+  if (list.some((x) => x.slug !== slug && x.alias && x.alias.toLowerCase() === a.toLowerCase())) return { error: 'Esa ruta ya la usa otro script.' };
+  return { alias: a };
+}
+async function loadIndex() { if (!indexCache) { try { indexCache = JSON.parse((await store.read('scripts/index.json')) || '[]'); } catch { indexCache = []; } rebuildAlias(indexCache); } return indexCache; }
+async function saveIndex(list) { await store.write('scripts/index.json', JSON.stringify(list, null, 2)); indexCache = list; rebuildAlias(list); }
+app.use(async (req, res, next) => {                // /api/duelos/auth/UzivertHub  ->  /s/<slug>
+  try {
+    if (req.method !== 'GET' || req.path.length < 5 || req.path.startsWith('/s/') || req.path.startsWith('/api/admin')) return next();
+    if (!indexCache) await loadIndex();
+    const sl = aliasMap.get(req.path.replace(/^\/+|\/+$/g, '').toLowerCase());
+    if (sl) { req.path = '/s/' + sl; req.url = req.path; }
+  } catch {}
+  next();
+});
 
 function adminOnly(req, res, next) {
   noStore(res);
@@ -644,7 +666,9 @@ app.put('/api/admin/scripts/:slug', adminOnly, async (req, res) => {
   const previo = (await loadIndex()).find((x) => x.slug === slug);
   if (b.logo === undefined && previo) logo = previo.logo || '';
   else { try { logo = await resolverLogo(b.logo); } catch (e) { return res.status(400).json({ error: e.message }); } }
-  const meta = { slug, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', situacion: ['ok', 'mant', 'caido'].includes(b.situacion) ? b.situacion : (previo && previo.situacion) || 'ok', cartel: ['grande', 'costado'].includes(b.cartel) ? b.cartel : (previo && previo.cartel) || 'grande', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: ['oculto', 'enlace'].includes(b.estado) ? b.estado : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
+  const ali = b.alias === undefined ? { alias: (previo && previo.alias) || '' } : checkAlias(b.alias, slug, await loadIndex());
+  if (ali.error) return res.status(400).json({ error: ali.error });
+  const meta = { slug, alias: ali.alias, logo, verificacion: b.verificacion === 'no' ? 'no' : 'si', situacion: ['ok', 'mant', 'caido'].includes(b.situacion) ? b.situacion : (previo && previo.situacion) || 'ok', cartel: ['grande', 'costado'].includes(b.cartel) ? b.cartel : (previo && previo.cartel) || 'grande', name: clean(b.name, 60) || slug, game: clean(b.game, 60), version: clean(b.version, 20), description: clean(b.description, 300), estado: ['oculto', 'enlace'].includes(b.estado) ? b.estado : 'activo', updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) };
   let aviso = '';
   try {
     await store.write(`scripts/${slug}.lua`, code);
@@ -714,7 +738,7 @@ app.get('/api/scripts', async (req, res) => {
         if (code != null && !(c && Date.now() - c.t < 30e3)) cache.set(x.slug, { t: Date.now(), code });
         if (code != null && code.trim().length <= COPIAR_MAX) return code.trim();
       } catch {}
-      return `loadstring(game:HttpGet("${base}/s/${x.slug}"))()`;
+      return `loadstring(game:HttpGet("${loaderUrl(base, x)}"))()`;
     };
     const list = [];
     for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, logo: x.logo || '', situacion: x.situacion || 'ok', libre: x.verificacion === 'no', loadstring: (verificado || x.verificacion === 'no') ? await textoCopiable(x) : null });
@@ -1040,7 +1064,7 @@ app.get('/s/:slug', async (req, res) => {
   try {
     const meta = (await loadIndex()).find((s) => s.slug === slug);
     if (!meta || (meta.estado !== 'activo' && meta.estado !== 'enlace')) return res.status(404).send('-- no encontrado');
-    if (meta.situacion === 'mant') return res.send(meta.cartel === 'costado' ? luaMantCostado(meta.name, baseUrl(req) + '/s/' + slug) : luaMantenimiento(baseUrl(req) + '/s/' + slug));
+    if (meta.situacion === 'mant') return res.send(meta.cartel === 'costado' ? luaMantCostado(meta.name, loaderUrl(baseUrl(req), meta)) : luaMantenimiento(loaderUrl(baseUrl(req), meta)));
     if (!isAdmin(req)) contarEjec(slug, quien);
     const c = cache.get(slug);
     if (c && Date.now() - c.t < 30e3) return res.send(c.code);
@@ -1291,13 +1315,13 @@ const bovSerial = (fn) => { const p = bovCola.then(fn, fn); bovCola = p.catch(()
 const bovIdx = async () => { try { return JSON.parse((await store.read('boveda/index.json')) || '[]'); } catch { return []; } };
 const bovSave = (l) => store.write('boveda/index.json', JSON.stringify(l));
 const BOV_ID = /^[a-f0-9]{12}$/;
-const bovMeta = (m) => ({ slug: m.slug || '', id: m.id, nombre: m.nombre, carpeta: m.carpeta || '', tipo: m.tipo === 'loader' ? 'loader' : 'script', notas: m.notas || '', creado: m.creado, mod: m.mod, size: m.size, versiones: (m.vers || []).length, cifrado: !!m.cifrado });
+const bovMeta = (m) => ({ slug: m.slug || '', alias: m.alias || '', id: m.id, nombre: m.nombre, carpeta: m.carpeta || '', tipo: m.tipo === 'loader' ? 'loader' : 'script', notas: m.notas || '', creado: m.creado, mod: m.mod, size: m.size, versiones: (m.vers || []).length, cifrado: !!m.cifrado });
 const bovCampos = (b) => ({ tipo: b.tipo === 'loader' ? 'loader' : 'script', nombre: clean(b.nombre, 80), carpeta: clean(b.carpeta, 40), notas: clean(b.notas, 500), codigo: String(b.codigo == null ? '' : b.codigo) });
 app.get('/api/admin/boveda', adminOnly, async (req, res) => res.json({ cifrado: !!BOV_KEY, archivos: (await bovIdx()).map(bovMeta).sort((a, b) => (a.tipo === b.tipo ? 0 : a.tipo === 'loader' ? -1 : 1) || (a.carpeta || '~').localeCompare(b.carpeta || '~') || a.nombre.localeCompare(b.nombre)) }));
 app.get('/api/admin/boveda/:id', adminOnly, async (req, res) => {
   if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
   const m = (await bovIdx()).find((x) => x.id === req.params.id); if (!m) return res.status(404).json({ error: 'No existe.' });
-  try { const codigo = bovDescifrar(await store.read(`boveda/${m.id}.lua`)); audit(req, 'bóveda: abrir', m.nombre); res.json(Object.assign(bovMeta(m), { codigo, vers: m.vers || [], loader: m.slug ? `loadstring(game:HttpGet("${baseUrl(req)}/s/${m.slug}"))()` : '' })); } catch (e) { res.status(500).json({ error: e.message }); }
+  try { const codigo = bovDescifrar(await store.read(`boveda/${m.id}.lua`)); audit(req, 'bóveda: abrir', m.nombre); res.json(Object.assign(bovMeta(m), { codigo, vers: m.vers || [], loader: m.slug ? `loadstring(game:HttpGet("${loaderUrl(baseUrl(req), m)}"))()` : '' })); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/admin/boveda/:id/v/:v', adminOnly, async (req, res) => {
   if (!BOV_ID.test(req.params.id) || !/^\d{1,6}$/.test(req.params.v)) return res.status(400).json({ error: 'Inválido' });
@@ -1334,7 +1358,7 @@ app.put('/api/admin/boveda/:id', adminOnly, (req, res) => bovSerial(async () => 
 // Publicar un archivo de la bóveda como loader de la página (solo con enlace: no aparece en la lista pública)
 async function bovPublicar(m, code, req) {
   const prev = (await loadIndex()).find((x) => x.slug === m.slug) || {};
-  const meta = Object.assign({ logo: '', situacion: 'ok', game: m.carpeta || '', version: '', description: '' }, prev, { slug: m.slug, name: m.nombre, verificacion: 'no', estado: prev.estado === 'activo' ? 'activo' : 'enlace', bovedaId: m.id, updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) });
+  const meta = Object.assign({ logo: '', situacion: 'ok', game: m.carpeta || '', version: '', description: '' }, prev, { slug: m.slug, name: m.nombre, verificacion: 'no', alias: m.alias !== undefined ? m.alias : (prev.alias || ''), estado: prev.estado === 'activo' ? 'activo' : 'enlace', bovedaId: m.id, updatedAt: new Date().toISOString(), bytes: Buffer.byteLength(code) });
   await store.write(`scripts/${m.slug}.lua`, code);
   const l = (await loadIndex()).filter((x) => x.slug !== m.slug); l.push(meta); l.sort((a, c) => a.name.localeCompare(c.name));
   await saveIndex(l); cache.delete(m.slug);
@@ -1348,9 +1372,10 @@ app.post('/api/admin/boveda/:id/publicar', adminOnly, (req, res) => bovSerial(as
   if (otro) return res.status(409).json({ error: 'Ese nombre ya lo usa otro script de la página.' });
   if (l.some((x) => x.id !== m.id && x.slug === slug)) return res.status(409).json({ error: 'Ese nombre ya lo usa otro archivo de la bóveda.' });
   if (m.slug && m.slug !== slug) { try { await store.remove(`scripts/${m.slug}.lua`); await saveIndex((await loadIndex()).filter((x) => x.slug !== m.slug)); cache.delete(m.slug); } catch {} }
+  if (req.body && req.body.alias !== undefined) { const ali = checkAlias(req.body.alias, slug, await loadIndex()); if (ali.error) return res.status(400).json({ error: ali.error }); m.alias = ali.alias; }
   m.slug = slug;
   await bovPublicar(m, bovDescifrar(await store.read(`boveda/${m.id}.lua`)), req); await bovSave(l);
-  audit(req, 'bóveda: publicar', m.nombre + ' -> /s/' + slug); res.json({ ok: true, slug, loader: `loadstring(game:HttpGet("${baseUrl(req)}/s/${slug}"))()` });
+  audit(req, 'bóveda: publicar', m.nombre + ' -> ' + (m.alias ? '/' + m.alias : '/s/' + slug)); res.json({ ok: true, slug, alias: m.alias || '', loader: `loadstring(game:HttpGet("${loaderUrl(baseUrl(req), m)}"))()` });
 }).catch((e) => res.status(500).json({ error: 'No se pudo publicar: ' + e.message })));
 app.post('/api/admin/boveda/:id/despublicar', adminOnly, (req, res) => bovSerial(async () => {
   if (!BOV_ID.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
