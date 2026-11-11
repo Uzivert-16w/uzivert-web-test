@@ -400,47 +400,30 @@ function vxVerif(t, dc, ctx) {
   return { say: pasos, action: { type: 'verify' } };
 }
 
-// Loaders que Vertix entrega: los mismos que da la pagina (scripts publicados con estado "activo").
-// Si la pagina todavia no tiene ninguno de Duelos/Universal, usa los antiguos como respaldo.
+// Loaders que Vertix entrega (fijos, sin buscar nada). Se pueden cambiar con variables de entorno.
+const VX_BASE = (env.PUBLIC_URL || 'https://uzivert-web.onrender.com').replace(/\/$/, '');
 const VX_LOADERS = {
-  duelos: env.VX_LOADER_DUELOS || 'loadstring(game:HttpGet("https://duelos-api.vercel.app/loader"))()',
-  universal: env.VX_LOADER_UNIVERSAL || 'loadstring(game:HttpGet("https://uzivert-universal-api.vercel.app/loader"))()',
+  hub: env.VX_LOADER_HUB || `loadstring(game:HttpGet("${VX_BASE}/Api/UzivertHub/Auth2"))()`,
+  duelos: env.VX_LOADER_DUELOS || `loadstring(game:HttpGet("${VX_BASE}/Api/Duelos/auth2/UzivertHub"))()`,
+  universal: env.VX_LOADER_UNIVERSAL || `loadstring(game:HttpGet("${VX_BASE}/Api/Universal/Auth2/UzivertHub"))()`,
 };
 const vxNorm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-const vxBase = (req) => (env.PUBLIC_URL || (req.headers && req.headers.host ? baseUrl(req) : 'https://uzivert-web.onrender.com')).replace(/\/$/, '');
-async function vxScripts(t, dc, req, hist) {                                 // devuelve {say, action} si piden un script/loader, o null
+function vxScripts(t, dc, hist) {                                      // devuelve {say, action} si piden un script/loader, o null
   const q = vxNorm(t);
   const L = (x) => '`' + x + '`';                                  // siempre entre comillas invertidas (código en línea)
-  const enCtx = /(loaders? disponibles|los que si tengo|pideme(lo)? por su nombre|loadstring)/.test(vxNorm(hist));   // venia hablando de loaders
+  const enCtx = /(los loaders|puedo darte|te doy|pideme (uno|por)|script de duelos|script universal)/.test(vxNorm(hist));   // venia hablando de loaders
   const pide = /\b(script|scripts|loader|loaders|loadstring|cargador)\b/.test(q) || (enCtx && q.length < 60);
+  const duelos = /\b(duelos?|duels?)\b/.test(q), uni = /\buniversal\b/.test(q);
+  const hub = /\b(uzivert hub|hub (grande|completo|principal|oficial)|oficial|(\d+|cuatro|cinco|seis) juegos|mm2|mmv|prison|distrito|latam)\b/.test(q) && !(duelos && !/\b(hub (grande|completo|principal|oficial)|oficial)\b/.test(q));
   const verbo = /\b(dame|dar|dan|da|pasa|pasame|pasar|mand[ae]|manda|quiero|necesito|tienes|tienen|donde|como consigo|como obtengo|link|enlace|cual|cuales|lista|todos)\b/.test(q);
-  const juegoTxt = /\b(duelos?|duels?|latam|universal|mm2|mmv|murder|prison|distrito|violencia|hub|oficial|juegos)\b/.test(q);
-  if (!pide || !(verbo || juegoTxt)) return null;
-  let lista = [];
-  try { lista = (await loadIndex()).filter((x) => x.estado === 'activo'); } catch {}
-  const base = vxBase(req);
-  const linea = (x) => (x.nombre || x.name) + (x.situacion === 'mant' ? ' (en mantenimiento por ahora)' : '') + ':\n' + L('loadstring(game:HttpGet("' + loaderUrl(base, x) + '"))()');
-  if (!lista.length) {                                             // la pagina aun no tiene scripts publicados: respaldo antiguo
-    const duelos = /\b(duelos?|duels?)\b/.test(q), uni = /\buniversal\b/.test(q);
-    if (duelos && uni) return { say: 'Estos son los loaders que puedo darte.\nDuelos (Murderer vs Sheriffs):\n' + L(VX_LOADERS.duelos) + '\nUniversal:\n' + L(VX_LOADERS.universal), action: null };
-    if (duelos) return { say: 'Aquí tienes el loader de Duelos (Murderer vs Sheriffs). Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.duelos), action: null };
-    if (uni) return { say: 'Aquí tienes el loader Universal. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(VX_LOADERS.universal), action: null };
-    return { say: 'Por ahora puedo darte los loaders de Duelos (Murderer vs Sheriffs) y del Universal. Pídeme, por ejemplo, "script de duelos" o "script universal".', action: null };
-  }
-  const palabras = (x) => vxNorm((x.name || '') + ' ' + (x.slug || '') + ' ' + (x.juego || x.game || '')).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !['hub', 'uzivert', 'script', 'scripts', 'para', 'del', 'los', 'las'].includes(w));
-  // 1) el nombre completo ("uzivert hub") o sus apodos ("hub grande", "5 juegos"): gana el nombre mas largo que aparezca
-  const grande = /\b(hub (grande|completo|principal|oficial)|(\d+|cuatro|cinco|seis) juegos|oficial)\b/.test(q) || (/\buzivert hub\b/.test(q) && !/\b(duelos?|universal|latam)\b/.test(q));
-  const esGrande = (x) => /uzivert hub/.test(vxNorm(x.name)) && !/\b(duelos?|universal|latam)\b/.test(vxNorm(x.name));
-  const porNombre = lista.filter((x) => { const n = vxNorm(x.name).trim(); return n && (q.includes(n) || (grande && esGrande(x))); });
-  const mx = Math.max(0, ...porNombre.map((x) => vxNorm(x.name).trim().length));
-  const exactos = porNombre.filter((x) => vxNorm(x.name).trim().length === mx);
-  // 2) si no, por palabras sueltas (juego, nombre)
-  const con = exactos.length ? exactos : lista.filter((x) => palabras(x).some((w) => new RegExp('\\b' + w + '\\b').test(q)));
-  const pedidos = con.length && !/\b(todos|todo|lista|cuales|disponibles)\b/.test(q) ? con : [];
-  if (pedidos.length) return { say: (pedidos.length === 1 ? 'Aquí tienes el loader. Cópialo y pégalo en tu ejecutor dentro del juego:\n' : 'Estos son los loaders. Cópialos y pégalos en tu ejecutor dentro del juego:\n') + pedidos.map((x) => linea({ nombre: x.name, ...x })).join('\n'), action: null };
-  const nombres = lista.map((x) => x.name).join(', ');
-  if (juegoTxt && !con.length) return { say: 'Ese script no está disponible por ahora. Los que sí tengo son: ' + nombres + '. Pídemelo por su nombre.', action: null };
-  return { say: 'Estos son los loaders disponibles. Cópialos y pégalos en tu ejecutor dentro del juego:\n' + lista.map((x) => linea({ nombre: x.name, ...x })).join('\n'), action: null };
+  if (!pide || !(duelos || uni || hub || verbo)) return null;
+  const pedidos = [];
+  if (hub) pedidos.push(['Uzivert Hub (el hub grande)', VX_LOADERS.hub]);
+  if (duelos) pedidos.push(['Duelos (Murderer vs Sheriffs)', VX_LOADERS.duelos]);
+  if (uni) pedidos.push(['Universal', VX_LOADERS.universal]);
+  if (!pedidos.length) pedidos.push(['Uzivert Hub (el hub grande)', VX_LOADERS.hub], ['Duelos (Murderer vs Sheriffs)', VX_LOADERS.duelos], ['Universal', VX_LOADERS.universal]);
+  if (pedidos.length === 1) return { say: 'Aquí tienes el loader de ' + pedidos[0][0] + '. Cópialo y pégalo en tu ejecutor dentro del juego:\n' + L(pedidos[0][1]), action: null };
+  return { say: 'Estos son los loaders. Cópialos y pégalos en tu ejecutor dentro del juego:\n' + pedidos.map(([n, l]) => n + ':\n' + L(l)).join('\n'), action: null };
 }
 
 // Modelos pequeños a veces prometen el código ("aquí tienes el script") y no lo escriben. Se detecta y se reintenta.
@@ -457,7 +440,7 @@ const vertixHandler = async (req, res) => {
   const imagen = (typeof b.imagen === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.imagen) && b.imagen.length < 1_000_000) ? b.imagen : '';
   if (!texto && imagen) texto = 'Describe esta imagen y dime qué ves.';
   if (!texto) { vxDevolver(req); return res.status(400).json({ error: 'Escribe o di algo.' }); }
-  if (!imagen) { const sc = (await vxScripts(texto, !!req._vxKeys, req, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' '))) || vxVerif(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
+  if (!imagen) { const sc = vxScripts(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')) || vxVerif(texto, !!req._vxKeys, (Array.isArray(b.historial) ? b.historial.slice(-2) : []).map((m) => (m && m.content) || '').join(' ')); if (sc) { vxDevolver(req); const ci = vxCuotaInfo(req); return res.json({ say: sc.say, action: sc.action, buscado: false, restantes: ci.restantes, espera: ci.espera }); } }
   if (imagen && !env.VISION_MODEL) { vxDevolver(req); return res.status(200).json({ restantes: vxCuotaInfo(req).restantes, say: 'Todavía no puedo ver fotos: falta configurar un modelo con visión en el servidor.', action: null }); }
   let fotoGastada = false;
   if (imagen) {
