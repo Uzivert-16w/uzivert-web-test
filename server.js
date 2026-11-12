@@ -918,6 +918,33 @@ async function leerLogo(slug, meta) {
   const l = await guardarLogo(slug, meta.logo);   // primera vez / copia perdida: descarga y guarda
   return { url: meta.logo, ...l };
 }
+// ---- Anti-robo: los loaders avisan aqui cuando detectan un script externo que intenta enviar items por trade o mandar datos a un webhook
+const antiVistos = new Map();   // usuario -> ultima alerta (evita repetir)
+setInterval(() => { const n = Date.now(); for (const [k, v] of antiVistos) if (n - v > 30 * 60e3) antiVistos.delete(k); }, 5 * 60e3).unref();
+app.get('/api/seguridad/alerta', (req, res) => {
+  noStore(res);
+  res.json({ ok: true });                                         // siempre responde igual: no le da pistas a nadie
+  const q = req.query || {};
+  const user = clean(q.user, 40).replace(/[^\w.-]/g, ''), id = String(q.id || '').replace(/\D/g, '').slice(0, 14);
+  const tipo = ['trade', 'webhook'].includes(q.tipo) ? q.tipo : 'otro';
+  if (!user || limited('anti:' + ip(req), 6, 10 * 60e3)) return;   // maximo 6 avisos cada 10 min por IP
+  const clave = user + '|' + tipo;
+  if (antiVistos.has(clave)) return;
+  antiVistos.set(clave, Date.now());
+  const detalle = clean(q.detalle, 140).replace(/[`@]/g, '');
+  postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{
+    title: tipo === 'trade' ? 'Script externo intento enviar items por trade' : tipo === 'webhook' ? 'Script externo intento enviar datos a un webhook' : 'Alerta de seguridad',
+    color: 0xed4245,
+    description: 'Un loader de Uzivert Hub detecto y bloqueo un script externo (posible stealer / autotrade) en la sesion de un jugador.',
+    fields: [
+      { name: 'Usuario de Roblox', value: '`' + user + '`', inline: true },
+      { name: 'ID', value: '`' + (id || '?') + '`', inline: true },
+      { name: 'Juego (PlaceId)', value: '`' + (String(q.juego || '').replace(/\D/g, '').slice(0, 14) || '?') + '`', inline: true },
+      { name: 'Detalle', value: '`' + (detalle || 'sin detalle') + '`' },
+    ],
+    footer: { text: tipo === 'trade' ? 'Se bloqueo el trade y se cerro el juego del jugador.' : 'Se bloqueo el envio.' },
+  }] }).catch(() => {});
+});
 // ---- Banner y fondo de la seccion Creador (se suben desde el admin)
 const CR_TIPOS = ['banner', 'fondo'];
 const crCache = new Map();
