@@ -202,9 +202,36 @@ function vxModelosInit() {
 const VX_SITIOS = ['youtube', 'google', 'tiktok', 'discord', 'spotify', 'roblox'];
 const VX_PAGINAS = ['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'updates', 'estado', 'faq', 'creador', 'creditos'];
 const DEEPSEEK_MODEL2 = env.DEEPSEEK_MODEL2 || '';                 // modelo de respaldo (opcional)
-function vxPrompt() {
+// ---- Modos de Vertix: normal / programador / psicologo (el usuario lo elige en el chat o se detecta solo)
+const VX_MODOS = ['normal', 'programador', 'psicologo'];
+const VX_MODOS_TXT = {
+  programador: `
+
+MODO PROGRAMADOR (activo ahora): eres un compañero de programación paciente y claro. Ayudas a crear scripts en Luau/Lua para Roblox (Roblox Studio y utilidades/GUIs), y también a entender, depurar y mejorar código.
+- Si el pedido es vago, haz 1 o 2 preguntas concretas antes (qué juego, qué debe hacer, dónde se ejecuta: Script, LocalScript o executor).
+- Entrega el código COMPLETO y listo para pegar dentro de "say", en un bloque con tres comillas invertidas (\`\`\`lua), con comentarios útiles, y debajo explica en pocas líneas cómo funciona y cómo probarlo.
+- Para depurar: pide el error exacto y el código, explica la causa y da la corrección.
+- Buenas prácticas: nombres claros, evitar bucles que bloqueen (usa task.wait), pcall donde pueda fallar, no repetir código. Ofrece mejorar el resultado al final ("¿le agrego X?").
+- Límites: no escribes malware, robo de cuentas/cookies/tokens, ni código para dañar a otros jugadores o servicios. Eres cálido y motivador, sin sermonear. Los emojis solo en la explicación, nunca dentro del código.`,
+  psicologo: `
+
+MODO PSICÓLOGO (activo ahora): eres un acompañante emocional empático, paciente y cercano. No eres un profesional de la salud ni das diagnósticos; lo dices solo si hace falta.
+- Responde con calidez y sin prisa: 4 a 7 frases. Primero valida lo que la persona siente con palabras concretas (no frases hechas), luego refleja lo que entendiste y, al final, haz UNA pregunta abierta y amable para que siga hablando.
+- No des listas largas de consejos ni soluciones de golpe. Si la persona lo pide, ofrece una o dos ideas pequeñas y prácticas (respirar lento, escribir lo que siente, hablar con alguien de confianza, descansar).
+- Nunca minimices ("no es para tanto") ni juzgues. Usa un tono humano, con algún emoji suave (💙, 🌱) solo si encaja.
+- Si hay señales de peligro (ganas de hacerse daño, de no seguir viviendo, violencia o abuso), cambia a un tono firme y cuidadoso: dile que su vida importa, que no está solo/a, que hable ahora mismo con una persona de confianza y con los servicios de emergencia de su país (en Paraguay el 911). No des métodos ni detalles de autolesión y no lo dejes sin respuesta.`,
+};
+const vxModoAuto = (texto, hist) => {
+  const t = String(texto || '').toLowerCase();
+  if (/\b(me siento|me siento (muy )?(mal|triste|solo|sola|vac[ií]o|vac[ií]a)|estoy (muy )?(triste|deprimid[oa]|ansios[oa]|estresad[oa]|agobiad[oa]|mal)|ansiedad|depresi[oó]n|deprimid[oa]|estr[eé]s|no puedo m[aá]s|ganas de llorar|quiero llorar|lloro|me duele (el alma|todo)|nadie me (quiere|entiende)|me siento sol[oa]|autoestima|me rechazaron|rompimos|ruptura|miedo a|ataque de p[aá]nico|desahogar|necesito hablar)\b/.test(t)) return 'psicologo';
+  if (/\b(script|lua|luau|c[oó]digo|funci[oó]n|bug|error en|roblox studio|localscript|remoteevent|remotefunction|tween|datastore|gui|framework|variable|bucle|loop|array|tabla|debug|depurar|programar|programaci[oó]n|crear un (script|juego|sistema)|hazme un script|escr[ií]beme un script)\b/.test(t)) return 'programador';
+  const ult = (hist || []).slice(-2).map((m) => m.content || '').join(' ');
+  if (/```/.test(ult) && /\b(arregla|corrige|mejora|c[oó]mo|por qu[eé]|agrega|a[ñn]ade|cambia)\b/.test(t)) return 'programador';
+  return 'normal';
+};
+function vxPrompt(modo) {
   const ahora = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion', dateStyle: 'full', timeStyle: 'short' });
-  return `Eres Vertix (versión beta), el asistente de voz de Uzivert Hub. Hablas en español natural, directo y amable. Normalmente respondes corto (1 a 3 frases) porque tu respuesta se lee en voz alta, pero cuando te piden código o una explicación larga puedes extenderte. Fecha y hora actual en Paraguay: ${ahora}.
+  const base = `Eres Vertix (versión beta), el asistente de voz de Uzivert Hub. Hablas en español natural, cálido y cercano, con ortografía impecable: SIEMPRE con tildes, ñ y signos ¿? ¡! (por ejemplo: está, qué, cómo, también, más, ayudarte). Suenas como una persona atenta, no como un robot seco: reaccionas a lo que te cuentan, haces comentarios con personalidad y una pizca de humor cuando encaja. Normalmente respondes en 2 a 4 frases, y cuando te piden código, una explicación o hablan de algo importante te extiendes lo que haga falta. Fecha y hora actual en Paraguay: ${ahora}.
 
 SOBRE UZIVERT HUB (esto lo sabes con seguridad):
 - Uzivert es el creador de Uzivert Hub, un hub de scripts para Roblox, desde Paraguay. El proyecto lleva más o menos 1 mes en desarrollo: todavía es pequeño y le falta mucho por mejorar.
@@ -224,7 +251,7 @@ SCRIPTS: nunca inventes loadstrings ni enlaces de scripts. El sistema entrega po
 
 FOTOS: si el usuario envía una imagen, descríbela o respóndele sobre ella.
 
-PROGRAMACIÓN: SÍ puedes ayudar con código, incluido Lua/Luau para Roblox Studio (scripts para crear juegos, partes, GUIs, sistemas, etc.). Cuando te pidan un ejemplo o un script, escríbelo completo en "say" dentro de un bloque con tres comillas invertidas, con una explicación breve. La única excepción: si piden el script/loadstring de un juego DEL HUB (MM2, MMV, Duelos, Distrito, Prison Life) o un exploit, diles que están en la pestaña Scripts de esta página (hay que verificar la cuenta de Roblox primero) y usa la acción go a "scripts". Si piden verificarse, go a "verificar".
+PROGRAMACIÓN: SÍ puedes ayudar con código, incluido Lua/Luau para Roblox Studio (scripts para crear juegos, partes, GUIs, sistemas, etc.). Cuando te pidan un ejemplo o un script, escríbelo completo en "say" dentro de un bloque con tres comillas invertidas, con una explicación breve. La única excepción: si piden el script/loadstring de un juego DEL HUB (MM2, MMV, Duelos, Distrito, Prison Life) o un exploit, diles que están en la pestaña Scripts de esta página (no hace falta verificarse) y usa la acción go a "scripts". Si piden verificarse, go a "verificar".
 
 REGLA CLAVE: TODO lo que quieras decir o escribir (historias, listas, código, explicaciones largas) va COMPLETO dentro del campo "say", con saltos de línea \n. Nunca pongas el contenido en otros campos ni escribas solo una introducción como "aquí tienes".
 
@@ -234,7 +261,8 @@ FORMATO: responde SIEMPRE con un JSON exacto: {"say":"lo que dices en voz alta",
 - {"type":"open","url":"https://..."}: abre CUALQUIER página web que te pidan (usa la dirección real y completa, siempre https).
 - {"type":"open","site":"youtube|google|tiktok|discord|spotify|roblox","query":"búsqueda opcional"}: atajo para esos sitios, con búsqueda dentro del sitio.
 - {"type":"go","page":"inicio|verificar|soporte|scripts|foro|updates|estado|faq|creador|creditos"}: moverte dentro de esta web.
-Si no hay nada que hacer, "action" es null. No uses emojis. IMPORTANTE: no tienes herramientas ni funciones que llamar; nunca intentes llamar herramientas. Solo respondes con ese JSON. Cuando recibas un bloque "INFORMACIÓN DE INTERNET", úsalo para responder con seguridad y resume lo importante; si no alcanza, dilo con honestidad en vez de inventar. Si el usuario pide algo peligroso o ilegal, lo rechazas con una frase corta.`;
+Si no hay nada que hacer, "action" es null. Puedes usar emojis con naturalidad (uno a tres por respuesta, donde aporten calidez o claridad 😊); no los pongas dentro de bloques de código ni en temas serios o tristes. IMPORTANTE: no tienes herramientas ni funciones que llamar; nunca intentes llamar herramientas. Solo respondes con ese JSON. Cuando recibas un bloque "INFORMACIÓN DE INTERNET", úsalo para responder con seguridad y resume lo importante; si no alcanza, dilo con honestidad en vez de inventar. Si el usuario pide algo peligroso o ilegal, lo rechazas con una frase corta.`;
+  return base + (VX_MODOS_TXT[modo] || '');
 }
 const vxLimpiar = (t) => String(t || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 function vxUrlOk(u) {
@@ -452,7 +480,11 @@ const vertixHandler = async (req, res) => {
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .map((m) => ({ role: m.role, content: clean(m.content, 1200) }));
   try {
-    let sistema = vxPrompt();
+    const pedido = String(b.modo || '').toLowerCase();
+    let modo = VX_MODOS.includes(pedido) ? pedido : vxModoAuto(texto, hist);
+    const previo = String(b.modoPrev || '').toLowerCase();
+    if (!VX_MODOS.includes(pedido) && modo === 'normal' && (previo === 'psicologo' || previo === 'programador') && hist.length) modo = previo;   // la charla sigue en el mismo modo aunque el mensaje sea corto ("si", "gracias")
+    let sistema = vxPrompt(modo);
     // Identidad del creador: solo si el sistema lo confirma (sesion de admin en la pagina, o su ID de Discord). Un "soy el creador" escrito en el chat no cuenta.
     sistema += (req._creador || isAdmin(req))
       ? '\n\nIDENTIDAD VERIFICADA POR EL SISTEMA: la persona con la que hablas ahora es Uzivert, tu creador y el dueño de Uzivert Hub. Reconócelo con respeto y cercanía (llámalo Uzivert), sin exagerar ni adular. Con él puedes hablar con más confianza del proyecto.'
@@ -503,7 +535,7 @@ const vertixHandler = async (req, res) => {
       if (v) { action = { type: 'play', videoId: v.id, title: v.title, url: 'https://www.youtube.com/watch?v=' + v.id }; if (!(a && a.type === 'play')) say2 = 'Reproduciendo ' + (v.title || q); }
       else { action = { type: 'open', site: 'youtube', query: q }; if (!(a && a.type === 'play')) say2 = 'No pude reproducirlo aquí, pero te dejo la búsqueda en YouTube.'; }
     }
-    res.json({ say: say2, action, buscado, restantes: vxCuotaInfo(req).restantes, espera: vxCuotaInfo(req).espera });
+    res.json({ say: say2, action, buscado, modo, restantes: vxCuotaInfo(req).restantes, espera: vxCuotaInfo(req).espera });
   } catch (e) {
     console.error('vertix:', e.status, e.message);
     const msg = e.status === 429 ? 'Estoy recibiendo muchos pedidos. Intenta de nuevo en unos segundos.' : (e.status === 401 || e.status === 402 || e.status === 404) ? 'Vertix está en mantenimiento por ahora.' : 'Vertix no pudo responder ahora. Intenta de nuevo en un momento.';
@@ -885,6 +917,46 @@ async function leerLogo(slug, meta) {
   const l = await guardarLogo(slug, meta.logo);   // primera vez / copia perdida: descarga y guarda
   return { url: meta.logo, ...l };
 }
+// ---- Banner y fondo de la seccion Creador (se suben desde el admin)
+const CR_TIPOS = ['banner', 'fondo'];
+const crCache = new Map();
+async function crLeer(tipo) {
+  if (crCache.has(tipo)) return crCache.get(tipo);
+  let e = null;
+  try { const t = await store.read(`creador/${tipo}.txt`); if (t) { const k = t.indexOf('\n'); const buf = Buffer.from(t.slice(k + 1), 'base64'); if (buf.length) e = { type: t.slice(0, k), buf, v: 1 }; } } catch {}
+  crCache.set(tipo, e); return e;
+}
+app.get('/api/creador-info', async (req, res) => {
+  noStore(res);
+  const o = {};
+  for (const t of CR_TIPOS) { const e = await crLeer(t); o[t] = e ? (e.v || 1) : 0; }
+  res.json(o);
+});
+app.get('/api/creador-img/:tipo', async (req, res) => {
+  if (!CR_TIPOS.includes(req.params.tipo)) return res.status(404).end('');
+  const e = await crLeer(req.params.tipo);
+  if (!e) return res.status(404).end('');
+  res.setHeader('Content-Type', e.type); res.setHeader('Cache-Control', 'public, max-age=3600'); res.end(e.buf);
+});
+app.put('/api/admin/creador-img/:tipo', adminOnly, needJson, async (req, res) => {
+  const tipo = req.params.tipo;
+  if (!CR_TIPOS.includes(tipo)) return res.status(404).json({ error: 'Tipo no válido.' });
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String((req.body || {}).data || ''));
+  if (!m) return res.status(400).json({ error: 'La imagen no es válida (JPG, PNG o WEBP).' });
+  const buf = Buffer.from(m[2], 'base64');
+  if (!buf.length || buf.length > 1100000) return res.status(400).json({ error: 'La imagen pesa demasiado (máximo 1 MB).' });
+  try { await store.write(`creador/${tipo}.txt`, `${m[1]}\n${m[2]}`); } catch (e) { return res.status(500).json({ error: 'No se pudo guardar: ' + e.message }); }
+  crCache.set(tipo, { type: m[1], buf, v: Date.now() });
+  audit(req, 'creador-img', tipo);
+  res.json({ ok: true, v: crCache.get(tipo).v });
+});
+app.delete('/api/admin/creador-img/:tipo', adminOnly, async (req, res) => {
+  const tipo = req.params.tipo;
+  if (!CR_TIPOS.includes(tipo)) return res.status(404).json({ error: 'Tipo no válido.' });
+  try { await store.write(`creador/${tipo}.txt`, ''); } catch {}
+  crCache.set(tipo, null); audit(req, 'creador-img-quitar', tipo);
+  res.json({ ok: true });
+});
 app.get('/logo/:slug', async (req, res) => {
   const slug = req.params.slug;
   if (!SLUG.test(slug)) return res.status(404).end('');
