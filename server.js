@@ -765,7 +765,7 @@ app.get('/api/scripts', async (req, res) => {
       return `loadstring(game:HttpGet("${loaderUrl(base, x)}"))()`;
     };
     const list = [];
-    for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, logo: x.logo || '', situacion: x.situacion || 'ok', libre: x.verificacion === 'no', loadstring: (verificado || x.verificacion === 'no') ? await textoCopiable(x) : null });
+    for (const x of activos) list.push({ slug: x.slug, name: x.name, game: x.game, version: x.version, description: x.description, updatedAt: x.updatedAt, logo: x.logo || '', situacion: x.situacion || 'ok', libre: true, loadstring: await textoCopiable(x) });
     res.json({ verificado, scripts: list });
   } catch (e) { res.status(500).json({ error: 'No se pudo leer la lista.' }); }
 });
