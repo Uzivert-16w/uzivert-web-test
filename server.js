@@ -87,7 +87,8 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
-app.use(express.json({ limit: '1.5mb' }));
+const jsonChico = express.json({ limit: '1.5mb' }), jsonGrande = express.json({ limit: '6mb' });   // el banner/fondo (GIF) del admin puede pesar mas
+app.use((req, res, next) => (String(req.path).startsWith('/api/admin/creador-img/') ? jsonGrande : jsonChico)(req, res, next));
 const noStore = (res) => res.setHeader('Cache-Control', 'no-store');
 const needJson = (req, res, next) => (req.is('application/json') && req.get('X-Requested-With') === 'uz' ? next() : res.status(400).json({ error: 'Petición inválida' }));
 const ip = (req) => req.ip || 'x';
@@ -941,10 +942,10 @@ app.get('/api/creador-img/:tipo', async (req, res) => {
 app.put('/api/admin/creador-img/:tipo', adminOnly, needJson, async (req, res) => {
   const tipo = req.params.tipo;
   if (!CR_TIPOS.includes(tipo)) return res.status(404).json({ error: 'Tipo no válido.' });
-  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String((req.body || {}).data || ''));
+  const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String((req.body || {}).data || ''));
   if (!m) return res.status(400).json({ error: 'La imagen no es válida (JPG, PNG o WEBP).' });
   const buf = Buffer.from(m[2], 'base64');
-  if (!buf.length || buf.length > 1100000) return res.status(400).json({ error: 'La imagen pesa demasiado (máximo 1 MB).' });
+  if (!buf.length || buf.length > (m[1] === 'image/gif' ? 4000000 : 1100000)) return res.status(400).json({ error: m[1] === 'image/gif' ? 'El GIF pesa demasiado (máximo 4 MB).' : 'La imagen pesa demasiado (máximo 1 MB).' });
   try { await store.write(`creador/${tipo}.txt`, `${m[1]}\n${m[2]}`); } catch (e) { return res.status(500).json({ error: 'No se pudo guardar: ' + e.message }); }
   crCache.set(tipo, { type: m[1], buf, v: Date.now() });
   audit(req, 'creador-img', tipo);
