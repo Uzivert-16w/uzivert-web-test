@@ -4,6 +4,7 @@
 <title>Uzivert Hub</title><meta name="description" content="Uzivert Hub: scripts para Roblox, soporte y verificación de cuenta.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"><link rel="stylesheet" href="/style.css"></head>
 <body>
+<div id="cr-fondo" aria-hidden="true"></div>
 <canvas id="stars"></canvas>
 <header>
   <div class="brand" id="brand" role="link" tabindex="0"><div class="orb"></div>UZIVERT HUB</div>
@@ -40,6 +41,7 @@
   </section>
 
   <section class="page" id="p-creador">
+    <div class="cr-banner" id="cr-banner" hidden><div class="cr-banner-in"><span class="cr-tag">CREADOR</span><b>Uzivert</b></div></div>
     <h2>Creador</h2><p class="lead" style="font-size:16px;margin-top:6px">Quién está detrás de Uzivert Hub.</p>
     <div class="card"><h3>Uzivert</h3><p>Desarrollo y mantenimiento de todos los scripts y de esta página. Uzivert Hub es un proyecto independiente hecho para la comunidad de Roblox.</p></div>
     <div class="card"><h3>Cómo se actualizan los scripts</h3>
@@ -182,6 +184,7 @@
       <label class="vx-chk" title="Respuestas en voz"><input type="checkbox" id="vx-voz" checked> Voz</label>
     </div>
     <div class="vx-modrow"><button type="button" class="vx-pill" id="vx-mod" aria-haspopup="listbox" aria-expanded="false"><span id="vx-modn">Modelo</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="vx-sheet" id="vx-sheet" role="listbox" hidden></div><button type="button" class="vx-pill" id="vx-vp" aria-haspopup="dialog" aria-expanded="false"><span id="vx-vpn">Voz: Automática</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="vx-sheet vx-vsheet" id="vx-vsheet" hidden></div></div>
+    <div class="vx-modos" id="vx-modos" role="group" aria-label="Modo de Vertix"><button type="button" data-m="auto" class="on">Auto</button><button type="button" data-m="normal">Normal</button><button type="button" data-m="programador">Programador</button><button type="button" data-m="psicologo">Psicólogo</button></div>
     <div class="card vx">
       <div class="vx-log" id="vx-log" aria-live="polite"></div>
       <div id="vx-prev" class="vx-prev" hidden><img id="vx-prev-img" alt=""><button type="button" id="vx-prev-x" class="ghost" aria-label="Quitar foto">Quitar</button></div>
