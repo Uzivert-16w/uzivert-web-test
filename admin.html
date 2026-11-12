@@ -99,6 +99,14 @@
 </div>
 <div class="tab hide" data-t="sistema">
     <div class="card"><h3>Cuentas verificadas</h3><p id="vcount">...</p><div class="row"><button class="ghost" id="vlist">Ver lista</button></div><pre class="ls hide" id="vpre" style="margin-top:10px;max-height:260px;overflow:auto"></pre></div>
+  <div class="card"><h3>Banner y fondo de Creador</h3><p>Imágenes de tu sección Creador. Se achican solas antes de subirse (máximo 1 MB).</p>
+    <label>Banner (arriba de la sección, mejor horizontal)</label>
+    <div class="row" style="margin-top:6px"><input type="file" id="cr-banner-f" accept="image/*" style="flex:1"><button class="ghost" id="cr-banner-x">Quitar</button></div>
+    <img id="cr-banner-p" alt="" style="display:none;max-width:100%;border-radius:12px;margin-top:10px;border:1px solid var(--line)">
+    <label>Fondo (detrás de toda la sección)</label>
+    <div class="row" style="margin-top:6px"><input type="file" id="cr-fondo-f" accept="image/*" style="flex:1"><button class="ghost" id="cr-fondo-x">Quitar</button></div>
+    <img id="cr-fondo-p" alt="" style="display:none;max-width:60%;border-radius:12px;margin-top:10px;border:1px solid var(--line)">
+    <div class="msg" id="cr-msg"></div></div>
   <div class="card"><h3>Diagnóstico</h3><p>Prueba si el servidor llega a Roblox y a Discord.</p><div class="row"><button class="ghost" id="diag">Ejecutar diagnóstico</button></div><pre class="ls hide" id="dpre" style="margin-top:10px"></pre></div>
 </div>
   </section>
