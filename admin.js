@@ -282,18 +282,19 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
 // ---- Banner y fondo de Creador
 (function () {
   const redim = (file, maxW) => new Promise((ok, err) => {
-    const img = new Image(), url = URL.createObjectURL(file);
+    const img = new Image(), fr = new FileReader();   // data: URL (la politica de seguridad de la pagina no deja blob:)
     img.onload = () => {
       const k = Math.min(1, maxW / img.width), c = document.createElement('canvas');
       c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
       let q = 0.86, d = c.toDataURL('image/jpeg', q);
       while (d.length > 1400000 && q > 0.4) { q -= 0.1; d = c.toDataURL('image/jpeg', q); }
       ok(d);
     };
-    img.onerror = () => err(new Error('No se pudo leer la imagen.'));
-    img.src = url;
+    img.onerror = () => err(new Error('No se pudo leer la imagen. Usa JPG, PNG, WEBP o GIF.'));
+    fr.onload = () => { img.src = fr.result; };
+    fr.onerror = () => err(new Error('No se pudo leer el archivo.'));
+    fr.readAsDataURL(file);
   });
   const msg = (t, bien) => { const m = $('cr-msg'); m.textContent = t; m.className = 'msg ' + (bien ? 'ok' : 'err'); };
   const vista = (tipo, hay) => { const p = $('cr-' + tipo + '-p'); if (hay) { p.src = '/api/creador-img/' + tipo + '?v=' + Date.now(); p.style.display = 'block'; } else p.style.display = 'none'; };
