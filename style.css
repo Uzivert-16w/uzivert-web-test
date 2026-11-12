@@ -276,3 +276,60 @@ body.vx-mode main{max-width:900px;padding:8px 10px 10px}
 .term{background:#030305;border:1px solid var(--line);border-radius:12px;padding:10px;height:340px;overflow-y:auto;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;word-break:break-word}
 .term .l{white-space:pre-wrap}.term .l.aviso{color:#ffcf7a}.term .l.error{color:var(--err)}.term .l.cmd{color:#7dd3fc}.term .l.out{color:#d6d8de}.term .l.info{color:#9a9da6}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.chips button{padding:7px 12px;font-size:13px}
+
+/* Creador: banner y fondo */
+#cr-fondo{position:fixed;inset:0;z-index:0;pointer-events:none;background:center/cover no-repeat;opacity:0;transform:scale(1.04);transition:opacity .8s ease,transform 1.6s ease}
+#cr-fondo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,7,.55),rgba(5,5,7,.82))}
+body.en-creador #cr-fondo.hay{opacity:1;transform:scale(1)}
+.cr-banner{position:relative;height:clamp(130px,30vw,210px);border-radius:18px;margin-bottom:22px;background:#0d0e14 center/cover no-repeat;border:1px solid var(--line);overflow:hidden;animation:crIn .7s cubic-bezier(.2,.8,.2,1)}
+.cr-banner::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,7,0) 35%,rgba(5,5,7,.85))}
+.cr-banner::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.12),transparent);animation:crBrillo 5.5s ease-in-out infinite}
+.cr-banner-in{position:absolute;left:18px;bottom:14px;z-index:1;display:flex;flex-direction:column;gap:2px;font-size:26px;font-weight:900;letter-spacing:2px;text-shadow:0 2px 14px rgba(0,0,0,.7)}
+.cr-tag{font-size:11px;font-weight:700;letter-spacing:3px;color:#cfd3dc}
+@keyframes crIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes crBrillo{0%,55%{left:-60%}100%{left:130%}}
+@media (prefers-reduced-motion:reduce){.cr-banner::after{animation:none}#cr-fondo{transition:none}}
+
+/* Modos de Vertix */
+.vx-modos{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;padding:4px;background:#0b0c11;border:1px solid var(--line);border-radius:14px}
+.vx-modos button{flex:1 1 auto;background:transparent;color:var(--sub);border:0;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;transition:background .25s,color .25s,transform .15s}
+.vx-modos button:hover{color:var(--tx);background:#14151c}
+.vx-modos button:active{transform:scale(.96)}
+.vx-modos button.on{background:var(--ac);color:#000}
+
+/* ---- Animaciones mejoradas ---- */
+.page.on{animation:pageIn .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes pageIn{from{opacity:0;transform:translateY(14px) scale(.985);filter:blur(5px)}to{opacity:1;transform:none;filter:none}}
+.page.on .card:nth-child(5),.page.on .hero>*:not(.orb):nth-child(5){animation-delay:.25s}
+.page.on .card:nth-child(6){animation-delay:.3s}.page.on .card:nth-child(7){animation-delay:.35s}.page.on .card:nth-child(n+8){animation-delay:.4s}
+.page.on .grid>.card:nth-child(1){animation-delay:.1s}.page.on .grid>.card:nth-child(2){animation-delay:.18s}.page.on .grid>.card:nth-child(3){animation-delay:.26s}.page.on .grid>.card:nth-child(4){animation-delay:.34s}
+/* foco de luz en tarjetas */
+.card{position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;inset:0;background:radial-gradient(260px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.07),transparent 60%);opacity:0;transition:opacity .35s;pointer-events:none}
+.card:hover::before{opacity:1}
+/* hero: titulo con brillo, aurora y orbe con halo */
+.hero{position:relative}
+.hero::before{content:"";position:absolute;left:50%;top:30px;width:min(520px,90vw);height:320px;transform:translateX(-50%);background:radial-gradient(closest-side,rgba(120,140,255,.22),transparent),radial-gradient(closest-side at 70% 60%,rgba(255,255,255,.1),transparent);filter:blur(30px);z-index:-1;animation:aurora 9s ease-in-out infinite alternate;pointer-events:none}
+@keyframes aurora{from{transform:translateX(-56%) scale(.9);opacity:.7}to{transform:translateX(-44%) scale(1.12);opacity:1}}
+.hero h1{background-size:100% 220%;animation:tituloBrillo 6s ease-in-out infinite}
+@keyframes tituloBrillo{0%,100%{background-position:0 0}50%{background-position:0 100%}}
+.orb .g{animation:halo 3.2s ease-in-out infinite}
+@keyframes halo{0%,100%{opacity:.75;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.18)}}
+body.vx-habla .orb .g{animation:hablar .45s ease-in-out infinite alternate}
+@keyframes hablar{from{opacity:.8;transform:translate(-50%,-50%) scale(1)}to{opacity:1;transform:translate(-50%,-50%) scale(1.5)}}
+/* Vertix: mensajes con entrada */
+.vx-m{animation:msgIn .35s cubic-bezier(.2,.9,.3,1.2) both;transform-origin:bottom left}
+.vx-m.u{transform-origin:bottom right}
+@keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(.94)}to{opacity:1;transform:none}}
+/* botones: onda al tocar y brillo al pasar */
+button,.btn{position:relative;overflow:hidden}
+.ripple{position:absolute;border-radius:50%;background:rgba(0,0,0,.18);transform:scale(0);animation:ripple .6s ease-out forwards;pointer-events:none}
+@keyframes ripple{to{transform:scale(1);opacity:0}}
+button:not(.ghost):not(.close):not(.vx-ib):not(.vx-pill):not(.danger):hover::after,.btn:hover::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-18deg);animation:shine .7s ease forwards;pointer-events:none}
+@keyframes shine{to{left:130%}}
+/* menu y pestanas */
+nav a{transition:color .25s,background .2s,transform .2s}
+nav a:active{transform:scale(.94)}
+.dr-list a{transition:background .2s,transform .2s,padding-left .2s}
+.dr-list a:hover{transform:translateX(4px)}
+@media (prefers-reduced-motion:reduce){.page.on,.page.on .card,.hero::before,.hero h1,.orb .g,.vx-m,.ripple{animation:none!important}.page.on .card,.page.on .hero>*{opacity:1!important}.card::before{display:none}button::after,.btn::after{display:none}}
