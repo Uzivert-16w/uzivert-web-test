@@ -278,3 +278,39 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
   $('co-clear').onclick = () => { term.textContent = ''; };
   $('co-fil').addEventListener('input', filtra);
 })();
+
+// ---- Banner y fondo de Creador
+(function () {
+  const redim = (file, maxW) => new Promise((ok, err) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, maxW / img.width), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      let q = 0.86, d = c.toDataURL('image/jpeg', q);
+      while (d.length > 1400000 && q > 0.4) { q -= 0.1; d = c.toDataURL('image/jpeg', q); }
+      ok(d);
+    };
+    img.onerror = () => err(new Error('No se pudo leer la imagen.'));
+    img.src = url;
+  });
+  const msg = (t, bien) => { const m = $('cr-msg'); m.textContent = t; m.className = 'msg ' + (bien ? 'ok' : 'err'); };
+  const vista = (tipo, hay) => { const p = $('cr-' + tipo + '-p'); if (hay) { p.src = '/api/creador-img/' + tipo + '?v=' + Date.now(); p.style.display = 'block'; } else p.style.display = 'none'; };
+  ['banner', 'fondo'].forEach((tipo) => {
+    $('cr-' + tipo + '-f').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        msg('Subiendo...', true);
+        const data = await redim(f, tipo === 'banner' ? 1600 : 1800);
+        await api('/api/admin/creador-img/' + tipo, { method: 'PUT', body: { data } });
+        msg((tipo === 'banner' ? 'Banner' : 'Fondo') + ' actualizado.', true); vista(tipo, true);
+      } catch (er) { msg(er.message || 'No se pudo subir.', false); }
+      e.target.value = '';
+    });
+    $('cr-' + tipo + '-x').addEventListener('click', async () => {
+      try { await api('/api/admin/creador-img/' + tipo, { method: 'DELETE' }); vista(tipo, false); msg('Quitado.', true); } catch (er) { msg(er.message, false); }
+    });
+  });
+  fetch('/api/creador-info').then((r) => r.json()).then((i) => { vista('banner', !!i.banner); vista('fondo', !!i.fondo); }).catch(() => {});
+})();
