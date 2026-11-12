@@ -207,7 +207,7 @@ async function loadScripts() {
     const d = await api('/api/scripts');
     const box = $('sc-list'); box.textContent = '';
     $('sc-empty').classList.toggle('hide', d.scripts.length > 0);
-    if (!d.verificado && d.scripts.some((x) => !x.libre)) { show($('sc-lock'), 'Verifica tu cuenta para poder copiar los scripts.', false); const b = txt('button', 'Ir a verificar'); b.style.marginLeft = '10px'; b.onclick = () => go('verificar'); $('sc-lock').append(b); } else $('sc-lock').className = 'msg';
+    $('sc-lock').className = 'msg';
     d.scripts.forEach((s) => {
       const card = document.createElement('div'); card.className = 'card';
       const top = document.createElement('div'); top.className = 'sc';
@@ -215,7 +215,6 @@ async function loadScripts() {
       if (s.logo) { const im = document.createElement('img'); im.className = 'logo'; im.alt = ''; im.onload = () => tile.replaceWith(im); im.src = '/logo/' + encodeURIComponent(s.slug) + '?v=' + encodeURIComponent(s.updatedAt || ''); }
       const info = document.createElement('div'); info.className = 'inf';
       info.append(txt('h3', s.name));
-      if (s.libre) info.append(txt('span', 'Sin verificación', 'badge'));
       const sit = SIT[s.situacion] || SIT.ok; const st = document.createElement('div'); st.className = 'st ' + sit[0]; st.append(txt('i', '', 'dot ' + sit[0]), txt('span', sit[1])); info.append(st);
       const meta = [s.game, s.version, 'Actualizado ' + fdate(s.updatedAt)].filter(Boolean).join('  |  ');
       info.append(txt('div', meta, 'meta'));
