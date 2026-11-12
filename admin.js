@@ -302,7 +302,11 @@ $('se-add').onclick = async () => { try { await api('/api/admin/seguridad/bloque
       const f = e.target.files[0]; if (!f) return;
       try {
         msg('Subiendo...', true);
-        const data = await redim(f, tipo === 'banner' ? 1600 : 1800);
+        let data;
+        if (f.type === 'image/gif') {   // los GIF se suben tal cual para que no pierdan la animacion
+          if (f.size > 4000000) throw new Error('El GIF pesa demasiado (máximo 4 MB). Achícalo y vuelve a subirlo.');
+          data = await new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => no(new Error('No se pudo leer el GIF.')); fr.readAsDataURL(f); });
+        } else data = await redim(f, tipo === 'banner' ? 1600 : 1800);
         await api('/api/admin/creador-img/' + tipo, { method: 'PUT', body: { data } });
         msg((tipo === 'banner' ? 'Banner' : 'Fondo') + ' actualizado.', true); vista(tipo, true);
       } catch (er) { msg(er.message || 'No se pudo subir.', false); }
