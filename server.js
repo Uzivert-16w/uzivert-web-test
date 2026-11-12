@@ -1028,6 +1028,9 @@ function esNavegadorOHerramienta(req) {
   const h = req.headers, ua = String(h['user-agent'] || '');
   if (h['sec-fetch-mode'] || h['sec-fetch-dest'] || h['sec-fetch-site'] || h['sec-ch-ua'] || h['upgrade-insecure-requests'] || /text\/html/i.test(String(h.accept || ''))) return 'navegador';
   if (/\b(curl|wget|python|aiohttp|httpx|requests|postman|insomnia|httpie|axios|node-fetch|undici|go-http|libwww|scrapy|powershell|spider|crawl)/i.test(ua)) return 'herramienta';
+  // Modo estricto: solo pasa lo que parece venir del cliente de Roblox (UA con "Roblox"/"WinInet" o cabecera "requester"/"traceparent", que manda Roblox).
+  // Se apaga con la variable SEG_ESTRICTO=0 en Render si algun ejecutor legitimo quedara afuera.
+  if (env.SEG_ESTRICTO !== '0' && !(/roblox|wininet/i.test(ua) || h.requester || h.traceparent)) return 'no-ejecutor';
   return '';
 }
 const PAGINA_NO = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No autorizado</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050507;color:#f2f3f6;font:16px system-ui,sans-serif;text-align:center}div{padding:24px}h1{font-size:22px;margin:0 0 8px}p{color:#9a9da6;margin:0}</style><div><h1>No estás autorizado</h1><p>Este enlace solo funciona dentro de Roblox con el loader oficial.</p></div>';
