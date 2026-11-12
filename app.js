@@ -80,6 +80,7 @@ async function cargarEstado() {
 function go(p) {
   document.querySelectorAll('.page').forEach((s) => s.classList.toggle('on', s.id === 'p-' + p));
   document.querySelectorAll('#nav a[data-p]').forEach((a) => a.classList.toggle('on', a.dataset.p === p));
+  document.body.classList.toggle('en-creador', p === 'creador');
   if (estadoTimer) { clearInterval(estadoTimer); estadoTimer = null; }
   if (p === 'updates') cargarUpdates();
   if (p === 'estado') { cargarEstado(); estadoTimer = setInterval(cargarEstado, 60000); }
@@ -341,7 +342,7 @@ function vxMsg(quien, texto) {
   $('vx-log').appendChild(d); $('vx-log').scrollTop = 1e9; return d;
 }
 const VX_PRON = [[/uzivert/gi, 'Usivert'], [/\bhub\b/gi, 'Jab'], [/\bvertix\b/gi, 'Vértiks'], [/\bMM2\b/g, 'eme eme dos'], [/\bMMV\b/g, 'eme eme ve'], [/youtube/gi, 'Yutub'], [/tiktok/gi, 'Tik Tok'], [/roblox/gi, 'Róblox'], [/\bloadstring\b/gi, 'lóadstring'], [/\bbeta\b/gi, 'béta']];
-function vxPronunciar(t) { let x = String(t).replace(/https?:\/\/\S+/g, 'el enlace'); for (const [re, r] of VX_PRON) x = x.replace(re, r); return x; }
+function vxPronunciar(t) { let x = String(t).replace(/https?:\/\/\S+/g, 'el enlace').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}]/gu, ''); for (const [re, r] of VX_PRON) x = x.replace(re, r); return x; }
 const VX_PAISES = { AR: 'Argentina', MX: 'México', ES: 'España', US: 'Estados Unidos', CO: 'Colombia', CL: 'Chile', PE: 'Perú', PY: 'Paraguay', UY: 'Uruguay', VE: 'Venezuela', BO: 'Bolivia', EC: 'Ecuador', CR: 'Costa Rica', CU: 'Cuba', DO: 'Rep. Dominicana', GT: 'Guatemala', HN: 'Honduras', NI: 'Nicaragua', PA: 'Panamá', PR: 'Puerto Rico', SV: 'El Salvador', 419: 'Latinoamérica' };
 let vxVoz = { id: '', rate: 1.0, pitch: 1.0 };
 try { Object.assign(vxVoz, JSON.parse(localStorage.getItem('vx_voz') || '{}')); } catch {}
@@ -364,11 +365,13 @@ function vxHablar(t, forzar) {
     const trozos = []; let cur = '';
     for (const p of partes) { if ((cur + p).length > 180 && cur) { trozos.push(cur); cur = p; } else cur += p; }
     if (cur.trim()) trozos.push(cur);
-    for (const x of trozos) {
-      const u = new SpeechSynthesisUtterance(x.trim()); u.lang = v ? v.lang : 'es-ES'; if (v) u.voice = v;
+    trozos.forEach((x, n) => {
+      const u = new SpeechSynthesisUtterance(x.trim());
+      if (n === 0) u.onstart = () => document.body.classList.add('vx-habla');
+      if (n === trozos.length - 1) { u.onend = u.onerror = () => document.body.classList.remove('vx-habla'); } u.lang = v ? v.lang : 'es-ES'; if (v) u.voice = v;
       u.rate = Math.min(1.4, Math.max(0.7, +vxVoz.rate || 1)); u.pitch = Math.min(1.3, Math.max(0.7, +vxVoz.pitch || 1));
       speechSynthesis.speak(u);
-    }
+    });
   } catch {}
 }
 function vxVozMenu() {
@@ -411,6 +414,11 @@ function vxVerifCard(host) {                                       // mini verif
     b.disabled = false; $('vx-log').scrollTop = 1e9;
   });
 }
+let vxModoSel = 'auto', vxModoAct = ''; try { vxModoSel = localStorage.getItem('vx_modo_sel') || 'auto'; } catch {}
+const VX_MODO_NOM = { normal: 'Normal', programador: 'Programador', psicologo: 'Psicólogo' };
+function vxModoPintar() { document.querySelectorAll('#vx-modos button').forEach((b) => b.classList.toggle('on', b.dataset.m === vxModoSel)); }
+document.querySelectorAll('#vx-modos button').forEach((b) => b.addEventListener('click', () => { vxModoSel = b.dataset.m; try { localStorage.setItem('vx_modo_sel', vxModoSel); } catch {} vxModoPintar(); }));
+vxModoPintar();
 async function vxEnviar(texto) {
   texto = String(texto || '').trim(); if ((!texto && !vxImg) || vxOcupado) return;
   const imagen = vxImg; vxImg = ''; $('vx-prev').hidden = true;
@@ -420,8 +428,8 @@ async function vxEnviar(texto) {
   if (imagen) { const ph = document.createElement('img'); ph.className = 'vx-ph'; ph.src = imagen; ph.alt = 'Foto enviada'; mu.prepend(ph); }
   const esp = vxPuntos();
   try {
-    const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist, imagen: imagen || undefined, modelo: vxModelo || undefined } });
-    vxCuota(d);
+    const d = await api('/api/vertix', { method: 'POST', body: { mensaje: texto, historial: vxHist, imagen: imagen || undefined, modelo: vxModelo || undefined, modo: vxModoSel === 'auto' ? undefined : vxModoSel, modoPrev: vxModoAct || undefined } });
+    vxCuota(d); if (d.modo) { vxModoAct = d.modo; const ba = document.querySelector('#vx-modos [data-m="auto"]'); if (ba) ba.textContent = vxModoSel === 'auto' && d.modo !== 'normal' ? 'Auto: ' + VX_MODO_NOM[d.modo].toLowerCase() : 'Auto'; }
     await vxEscribir(esp, d.say);
     vxHist.push({ role: 'user', content: (imagen ? '[foto] ' : '') + (texto || 'Describe la foto') }, { role: 'assistant', content: d.say }); vxHist = vxHist.slice(-12);
     if (!(d.action && d.action.type === 'play')) vxHablar(/```|loadstring\(/.test(d.say) ? 'Te dejo el código en el chat.' : d.say.slice(0, 400));
@@ -523,3 +531,28 @@ function vxInit() {
 }
 const start = location.hash.slice(1);
 if (['inicio', 'verificar', 'soporte', 'scripts', 'foro', 'creador', 'creditos', 'terminos', 'estado', 'faq', 'updates', 'vertix', 'donaciones'].includes(start)) go(start);
+
+// Banner y fondo de la seccion Creador (los sube el admin)
+fetch('/api/creador-info').then((r) => r.json()).then((i) => {
+  if (i && i.banner) { const b = $('cr-banner'); b.style.backgroundImage = `url(/api/creador-img/banner?v=${i.banner})`; b.hidden = false; }
+  if (i && i.fondo) { const f = $('cr-fondo'); f.style.backgroundImage = `url(/api/creador-img/fondo?v=${i.fondo})`; f.classList.add('hay'); }
+}).catch(() => {});
+
+// ---- Animaciones: foco de luz que sigue al dedo/mouse en las tarjetas y onda al tocar botones
+(function () {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.addEventListener('pointermove', (e) => {
+    const c = e.target.closest && e.target.closest('.card');
+    if (!c) return;
+    const r = c.getBoundingClientRect();
+    c.style.setProperty('--mx', (e.clientX - r.left) + 'px'); c.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  }, { passive: true });
+  document.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest && e.target.closest('button:not(.ghost):not(.close):not(.vx-ib), .btn');
+    if (!b) return;
+    const r = b.getBoundingClientRect(), s = document.createElement('span');
+    const d = Math.max(r.width, r.height) * 2;
+    s.className = 'ripple'; s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+    b.appendChild(s); setTimeout(() => s.remove(), 650);
+  }, { passive: true });
+})();
