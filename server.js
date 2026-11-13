@@ -1133,31 +1133,9 @@ function esNavegadorOHerramienta(req) {
   if (h['sec-fetch-mode'] || h['sec-fetch-dest'] || h['sec-fetch-site'] || h['sec-ch-ua'] || h['upgrade-insecure-requests'] || /text\/html/i.test(String(h.accept || ''))) return 'navegador';
   if (/\b(curl|wget|python|aiohttp|httpx|requests|postman|insomnia|httpie|axios|node-fetch|undici|go-http|libwww|scrapy|powershell|spider|crawl)/i.test(ua)) return 'herramienta';
   // Modo estricto: solo pasa lo que parece venir del cliente de Roblox (UA con "Roblox"/"WinInet" o cabecera "requester"/"traceparent", que manda Roblox).
-  // Viene APAGADO por defecto (varios ejecutores de celular no mandan esas cabeceras); se enciende con SEG_ESTRICTO=1.
-  if (env.SEG_ESTRICTO === '1' && !(/roblox|wininet/i.test(ua) || h.requester || h.traceparent)) return 'no-ejecutor';
+  // Se apaga con la variable SEG_ESTRICTO=0 en Render si algun ejecutor legitimo quedara afuera.
+  if (env.SEG_ESTRICTO !== '0' && !(/roblox|wininet/i.test(ua) || h.requester || h.traceparent)) return 'no-ejecutor';
   return '';
-}
-// Deteccion de servidores/datacenter: los bots (deofuscadores) corren en hosting, los jugadores en redes de casa o celular.
-// Consulta ip-api.com (gratis) y guarda el resultado 6 h. Si no responde, deja pasar (no molesta a jugadores).
-// APAGADO por defecto; se enciende con SEG_HOSTING=1 en Render.
-const segUltBloq = new Map();   // slug -> { t, ip } ultimo pedido bloqueado por servidor/proxy
-const hostCache = new Map();   // ip -> { info, t }
-async function infoIp(ipx) {
-  if (env.SEG_HOSTING !== '1' || !ipx || /^(::1|127\.|10\.|192\.168\.)/.test(ipx)) return null;
-  const c = hostCache.get(ipx);
-  if (c && Date.now() - c.t < 6 * 3600e3) return c.info;
-  try {
-    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 1500);
-    const r = await fetch('http://ip-api.com/json/' + encodeURIComponent(ipx) + '?fields=status,hosting,proxy,mobile,isp,as,countryCode', { signal: ctl.signal });
-    clearTimeout(tm);
-    const j = await r.json();
-    if (j && j.status === 'success') {
-      if (hostCache.size > 5000) hostCache.clear();
-      hostCache.set(ipx, { info: j, t: Date.now() });
-      return j;
-    }
-  } catch (e) { /* sin respuesta: se deja pasar */ }
-  return null;
 }
 const PAGINA_NO = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No autorizado</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050507;color:#f2f3f6;font:16px system-ui,sans-serif;text-align:center}div{padding:24px}h1{font-size:22px;margin:0 0 8px}p{color:#9a9da6;margin:0}</style><div><h1>No estás autorizado</h1><p>Este enlace solo funciona dentro de Roblox con el loader oficial.</p></div>';
 // Cartel de mantenimiento: es el mismo de LOADER_OFICIAL (copiado tal cual). Se ejecuta en el juego en lugar del script cuando esta "En mantenimiento".
@@ -1200,48 +1178,20 @@ function luaStr(v) { return '"' + String(v == null ? '' : v).replace(/[\\"\r\n]/
 // Registro temporal de cabeceras (solo en memoria, ultimas 40): sirve para ver que manda un ejecutor real y que manda un bot
 const hdrLog = [];
 app.get('/api/admin/cabeceras', adminOnly, (req, res) => res.json(hdrLog));
-// Entrega en dos pasos (anti bots que solo descargan el link): el link que pegan los jugadores devuelve un archivo chico con un codigo
-// de un solo uso; el loader real solo se entrega cuando ese archivo, ya dentro del juego, devuelve el codigo con datos de Roblox.
-// APAGADO por defecto; se enciende con SEG_ETAPAS=1 en Render. Solo aplica a los loaders (los archivos que contienen UZ_ESTADO_URL).
-const segNonce = new Map();   // codigo -> { t, slug }
-setInterval(() => { const n = Date.now(); for (const [k, v] of segNonce) if (n - v.t > 60e3) segNonce.delete(k); }, 30e3).unref();
-const DECOY_LUA = '-- Uzivert Hub: este enlace esta desactualizado. Copia el loadstring actual desde nuestro Discord.\nwarn("[Uzivert Hub] Enlace desactualizado. Copia el loadstring nuevo desde discord.gg/vHhERWcbXe")\n';
-function stubEtapa1(base, slug, k) {
-  return '-- Uzivert Hub\nlocal P = game:GetService("Players").LocalPlayer\n'
-    + 'local ok, src = pcall(function() return game:HttpGet(' + JSON.stringify(base + '/s/' + slug + '?k=' + k) + ' .. "&pl=" .. tostring(game.PlaceId) .. "&jb=" .. tostring(game.JobId) .. "&us=" .. tostring(P and P.UserId or 0)) end)\n'
-    + 'if not ok or type(src) ~= "string" or #src < 20 then warn("[Uzivert Hub] No se pudo conectar. Intenta de nuevo.") return end\n'
-    + 'local f, e = loadstring(src)\nif not f then warn("[Uzivert Hub] " .. tostring(e)) return end\nf()\n';
-}
-function etapaOk(req, slug) {
-  const q = req.query || {};
-  const k = String(q.k || '');
-  const n = segNonce.get(k);
-  if (!n) return false;
-  segNonce.delete(k);                                   // un solo uso
-  if (n.slug !== slug || Date.now() - n.t > 30e3) return false;
-  if (!/^\d{1,15}$/.test(String(q.pl || '')) || !/^[1-9]\d{0,15}$/.test(String(q.us || '')) || !/^[0-9a-fA-F-]{0,40}$/.test(String(q.jb || ''))) return false;
-  return true;
-}
 app.get('/s/:slug', async (req, res) => {
   const quien = ip(req);
-  if (!isAdmin(req)) { const hh = req.headers; const ent = { ip: quien,  t: new Date().toISOString(), slug: clean(req.params.slug, 40), ua: String(hh['user-agent'] || '').slice(0, 160), accept: String(hh.accept || '').slice(0, 60), cabeceras: Object.keys(hh).filter((k) => !/^(x-forwarded|x-real|cf-|x-render|rndr|host|connection|via|true-client)/i.test(k)).join(', ').slice(0, 300) }; hdrLog.unshift(ent); if (hdrLog.length > 40) hdrLog.pop(); req._ent = ent; }
+  if (!isAdmin(req)) { const hh = req.headers; hdrLog.unshift({ t: new Date().toISOString(), slug: clean(req.params.slug, 40), ua: String(hh['user-agent'] || '').slice(0, 160), accept: String(hh.accept || '').slice(0, 60), cabeceras: Object.keys(hh).filter((k) => !/^(x-forwarded|x-real|cf-|x-render|rndr|host|connection|via|true-client)/i.test(k)).join(', ').slice(0, 300) }); if (hdrLog.length > 40) hdrLog.pop(); }
   const bloqueado = segBloq.get(quien);
-  const ipsOk = String(env.SEG_IPS_OK || '').split(',').map((x) => x.trim()).filter(Boolean);   // tus IPs de confianza (Render: SEG_IPS_OK=ip1,ip2)
-  let razon = (isAdmin(req) || ipsOk.includes(quien)) ? '' : (bloqueado && bloqueado > Date.now() ? 'bloqueado' : esNavegadorOHerramienta(req));
-  let inf = null;
-  if (!razon && !isAdmin(req) && !ipsOk.includes(quien)) {
-    inf = await infoIp(quien);
-    if (inf && (inf.hosting === true || (env.SEG_PROXY === '1' && inf.proxy === true))) razon = inf.hosting === true ? 'datacenter' : 'proxy';
-  }
-  if (req._ent) { req._ent.res = razon || 'paso'; if (inf) { req._ent.red = String(inf.isp || '').slice(0, 40) + ' | ' + String(inf.as || '').slice(0, 30); req._ent.hosting = inf.hosting; req._ent.proxy = inf.proxy; req._ent.movil = inf.mobile; } else req._ent.red = 'sin datos'; }
+  const razon = isAdmin(req) ? '' : (bloqueado && bloqueado > Date.now() ? 'bloqueado' : esNavegadorOHerramienta(req));
   if (razon) {
     res.status(403).setHeader('Cache-Control', 'no-store');
-    if (razon !== 'bloqueado' && !limited('segaviso:' + quien, 1, 3600e3)) {   // solo aviso (1 por IP/hora), NUNCA bloquea
-      audit(req, 'Acceso sospechoso al loader', quien + ' /s/' + clean(req.params.slug, 40));
-      postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien abrió un loader fuera de Roblox. No se bloqueó su IP.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: String(razon), inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }] }] });
+    if (razon !== 'bloqueado' && limited('seg:' + quien, 8, 10 * 60e3)) {   // 8 intentos en 10 min: bloqueo de 1 hora y aviso
+      segBloq.set(quien, Date.now() + 3600e3); audit(req, 'IP bloqueada (auto)', quien + ' /s/' + clean(req.params.slug, 40));
+      console.warn('[seguridad] IP bloqueada por insistir en /s/' + req.params.slug + ':', quien);
+      postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien insistió en abrir un loader fuera de Roblox. Se bloqueó su IP por 1 hora.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: razon, inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }, { name: 'User-Agent', value: '`' + clean(req.headers['user-agent'], 150).replace(/`/g, "'") + '`' }], timestamp: new Date().toISOString() }] }).catch(() => {});
     }
     if (/text\/html/i.test(String(req.headers.accept || ''))) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(PAGINA_NO); }
-    return res.type('text/plain; charset=utf-8').send('-- No estas autorizado' + (env.SEG_DIAG === '1' ? ' [diag: ' + razon + ' | ip ' + quien + ' | ua ' + clean(req.headers['user-agent'], 80).replace(/[\r\n]/g, ' ') + ']' : ''));
+    return res.type('text/plain; charset=utf-8').send('-- No estas autorizado');
   }
   res.type('text/plain; charset=utf-8').setHeader('Cache-Control', 'no-store');
   const slug = req.params.slug;
@@ -1250,26 +1200,12 @@ app.get('/s/:slug', async (req, res) => {
     const meta = (await loadIndex()).find((s) => s.slug === slug);
     if (!meta || (meta.estado !== 'activo' && meta.estado !== 'enlace')) return res.status(404).send('-- no encontrado');
     if (meta.situacion === 'mant' || meta.situacion === 'caido') return res.send(meta.cartel === 'costado' ? luaMantCostado(meta.name, loaderUrl(baseUrl(req), meta)) : luaMantenimiento(loaderUrl(baseUrl(req), meta)));
-    let code;
-    const c = cache.get(slug);
-    if (c && Date.now() - c.t < 30e3) code = c.code;
-    else {
-      code = await store.read(`scripts/${slug}.lua`);
-      if (code == null) return res.status(404).send('-- no encontrado');
-      cache.set(slug, { t: Date.now(), code });
-    }
-    if (env.SEG_ETAPAS === '1' && !isAdmin(req) && String(code).includes('UZ_ESTADO_URL')) {
-      if (!req.query || !req.query.k) {
-        const k = require('crypto').randomBytes(12).toString('hex');
-        if (segNonce.size > 20000) segNonce.clear();
-        segNonce.set(k, { t: Date.now(), slug });
-        if (req._ent) req._ent.res = 'etapa1';
-        return res.send(stubEtapa1(baseUrl(req), slug, k));
-      }
-      if (!etapaOk(req, slug)) { if (req._ent) req._ent.res = 'etapa2-rechazada'; return res.send(DECOY_LUA); }
-      if (req._ent) req._ent.res = 'etapa2-ok';
-    }
     if (!isAdmin(req)) contarEjec(slug, quien);
+    const c = cache.get(slug);
+    if (c && Date.now() - c.t < 30e3) return res.send(c.code);
+    const code = await store.read(`scripts/${slug}.lua`);
+    if (code == null) return res.status(404).send('-- no encontrado');
+    cache.set(slug, { t: Date.now(), code });
     res.send(code);
   } catch (e) { res.status(502).send('-- error temporal'); }
 });
