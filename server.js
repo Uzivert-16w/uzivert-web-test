@@ -1140,23 +1140,23 @@ function esNavegadorOHerramienta(req) {
 // Deteccion de servidores/datacenter: los bots (deofuscadores) corren en hosting, los jugadores en redes de casa o celular.
 // Consulta ip-api.com (gratis) y guarda el resultado 6 h. Si no responde, deja pasar (no molesta a jugadores).
 // Se apaga con la variable SEG_HOSTING=0 en Render.
-const hostCache = new Map();   // ip -> { v: true/false, t }
-async function esHosting(ipx) {
-  if (env.SEG_HOSTING === '0' || !ipx || /^(::1|127\.|10\.|192\.168\.)/.test(ipx)) return false;
+const hostCache = new Map();   // ip -> { info, t }
+async function infoIp(ipx) {
+  if (env.SEG_HOSTING === '0' || !ipx || /^(::1|127\.|10\.|192\.168\.)/.test(ipx)) return null;
   const c = hostCache.get(ipx);
-  if (c && Date.now() - c.t < 6 * 3600e3) return c.v;
+  if (c && Date.now() - c.t < 6 * 3600e3) return c.info;
   try {
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 1500);
-    const r = await fetch('http://ip-api.com/json/' + encodeURIComponent(ipx) + '?fields=status,hosting', { signal: ctl.signal });
+    const r = await fetch('http://ip-api.com/json/' + encodeURIComponent(ipx) + '?fields=status,hosting,proxy,mobile,isp,as,countryCode', { signal: ctl.signal });
     clearTimeout(tm);
     const j = await r.json();
     if (j && j.status === 'success') {
       if (hostCache.size > 5000) hostCache.clear();
-      hostCache.set(ipx, { v: j.hosting === true, t: Date.now() });
-      return j.hosting === true;
+      hostCache.set(ipx, { info: j, t: Date.now() });
+      return j;
     }
   } catch (e) { /* sin respuesta: se deja pasar */ }
-  return false;
+  return null;
 }
 const PAGINA_NO = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No autorizado</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050507;color:#f2f3f6;font:16px system-ui,sans-serif;text-align:center}div{padding:24px}h1{font-size:22px;margin:0 0 8px}p{color:#9a9da6;margin:0}</style><div><h1>No estás autorizado</h1><p>Este enlace solo funciona dentro de Roblox con el loader oficial.</p></div>';
 // Cartel de mantenimiento: es el mismo de LOADER_OFICIAL (copiado tal cual). Se ejecuta en el juego en lugar del script cuando esta "En mantenimiento".
@@ -1201,10 +1201,15 @@ const hdrLog = [];
 app.get('/api/admin/cabeceras', adminOnly, (req, res) => res.json(hdrLog));
 app.get('/s/:slug', async (req, res) => {
   const quien = ip(req);
-  if (!isAdmin(req)) { const hh = req.headers; hdrLog.unshift({ t: new Date().toISOString(), slug: clean(req.params.slug, 40), ua: String(hh['user-agent'] || '').slice(0, 160), accept: String(hh.accept || '').slice(0, 60), cabeceras: Object.keys(hh).filter((k) => !/^(x-forwarded|x-real|cf-|x-render|rndr|host|connection|via|true-client)/i.test(k)).join(', ').slice(0, 300) }); if (hdrLog.length > 40) hdrLog.pop(); }
+  if (!isAdmin(req)) { const hh = req.headers; const ent = { ip: quien,  t: new Date().toISOString(), slug: clean(req.params.slug, 40), ua: String(hh['user-agent'] || '').slice(0, 160), accept: String(hh.accept || '').slice(0, 60), cabeceras: Object.keys(hh).filter((k) => !/^(x-forwarded|x-real|cf-|x-render|rndr|host|connection|via|true-client)/i.test(k)).join(', ').slice(0, 300) }; hdrLog.unshift(ent); if (hdrLog.length > 40) hdrLog.pop(); req._ent = ent; }
   const bloqueado = segBloq.get(quien);
   let razon = isAdmin(req) ? '' : (bloqueado && bloqueado > Date.now() ? 'bloqueado' : esNavegadorOHerramienta(req));
-  if (!razon && !isAdmin(req) && await esHosting(quien)) razon = 'datacenter';
+  let inf = null;
+  if (!razon && !isAdmin(req)) {
+    inf = await infoIp(quien);
+    if (inf && (inf.hosting === true || (env.SEG_PROXY === '1' && inf.proxy === true))) razon = inf.hosting === true ? 'datacenter' : 'proxy';
+  }
+  if (req._ent) { req._ent.res = razon || 'paso'; if (inf) { req._ent.red = String(inf.isp || '').slice(0, 40) + ' | ' + String(inf.as || '').slice(0, 30); req._ent.hosting = inf.hosting; req._ent.proxy = inf.proxy; req._ent.movil = inf.mobile; } else req._ent.red = 'sin datos'; }
   if (razon) {
     res.status(403).setHeader('Cache-Control', 'no-store');
     if (razon !== 'bloqueado' && limited('seg:' + quien, 8, 10 * 60e3)) {   // 8 intentos en 10 min: bloqueo de 1 hora y aviso
