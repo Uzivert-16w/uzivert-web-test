@@ -1139,11 +1139,11 @@ function esNavegadorOHerramienta(req) {
 }
 // Deteccion de servidores/datacenter: los bots (deofuscadores) corren en hosting, los jugadores en redes de casa o celular.
 // Consulta ip-api.com (gratis) y guarda el resultado 6 h. Si no responde, deja pasar (no molesta a jugadores).
-// Se apaga con la variable SEG_HOSTING=0 en Render.
+// APAGADO por defecto; se enciende con SEG_HOSTING=1 en Render.
 const segUltBloq = new Map();   // slug -> { t, ip } ultimo pedido bloqueado por servidor/proxy
 const hostCache = new Map();   // ip -> { info, t }
 async function infoIp(ipx) {
-  if (env.SEG_HOSTING === '0' || !ipx || /^(::1|127\.|10\.|192\.168\.)/.test(ipx)) return null;
+  if (env.SEG_HOSTING !== '1' || !ipx || /^(::1|127\.|10\.|192\.168\.)/.test(ipx)) return null;
   const c = hostCache.get(ipx);
   if (c && Date.now() - c.t < 6 * 3600e3) return c.info;
   try {
@@ -1202,7 +1202,7 @@ const hdrLog = [];
 app.get('/api/admin/cabeceras', adminOnly, (req, res) => res.json(hdrLog));
 // Entrega en dos pasos (anti bots que solo descargan el link): el link que pegan los jugadores devuelve un archivo chico con un codigo
 // de un solo uso; el loader real solo se entrega cuando ese archivo, ya dentro del juego, devuelve el codigo con datos de Roblox.
-// Se apaga con SEG_ETAPAS=0 en Render. Solo aplica a los loaders (los archivos que contienen UZ_ESTADO_URL).
+// APAGADO por defecto; se enciende con SEG_ETAPAS=1 en Render. Solo aplica a los loaders (los archivos que contienen UZ_ESTADO_URL).
 const segNonce = new Map();   // codigo -> { t, slug }
 setInterval(() => { const n = Date.now(); for (const [k, v] of segNonce) if (n - v.t > 60e3) segNonce.delete(k); }, 30e3).unref();
 const DECOY_LUA = '-- Uzivert Hub: este enlace esta desactualizado. Copia el loadstring actual desde nuestro Discord.\nwarn("[Uzivert Hub] Enlace desactualizado. Copia el loadstring nuevo desde discord.gg/vHhERWcbXe")\n';
@@ -1258,7 +1258,7 @@ app.get('/s/:slug', async (req, res) => {
       if (code == null) return res.status(404).send('-- no encontrado');
       cache.set(slug, { t: Date.now(), code });
     }
-    if (env.SEG_ETAPAS !== '0' && !isAdmin(req) && String(code).includes('UZ_ESTADO_URL')) {
+    if (env.SEG_ETAPAS === '1' && !isAdmin(req) && String(code).includes('UZ_ESTADO_URL')) {
       if (!req.query || !req.query.k) {
         const k = require('crypto').randomBytes(12).toString('hex');
         if (segNonce.size > 20000) segNonce.clear();
