@@ -1133,8 +1133,8 @@ function esNavegadorOHerramienta(req) {
   if (h['sec-fetch-mode'] || h['sec-fetch-dest'] || h['sec-fetch-site'] || h['sec-ch-ua'] || h['upgrade-insecure-requests'] || /text\/html/i.test(String(h.accept || ''))) return 'navegador';
   if (/\b(curl|wget|python|aiohttp|httpx|requests|postman|insomnia|httpie|axios|node-fetch|undici|go-http|libwww|scrapy|powershell|spider|crawl)/i.test(ua)) return 'herramienta';
   // Modo estricto: solo pasa lo que parece venir del cliente de Roblox (UA con "Roblox"/"WinInet" o cabecera "requester"/"traceparent", que manda Roblox).
-  // Se apaga con la variable SEG_ESTRICTO=0 en Render si algun ejecutor legitimo quedara afuera.
-  if (env.SEG_ESTRICTO !== '0' && !(/roblox|wininet/i.test(ua) || h.requester || h.traceparent)) return 'no-ejecutor';
+  // Viene APAGADO por defecto (varios ejecutores de celular no mandan esas cabeceras); se enciende con SEG_ESTRICTO=1.
+  if (env.SEG_ESTRICTO === '1' && !(/roblox|wininet/i.test(ua) || h.requester || h.traceparent)) return 'no-ejecutor';
   return '';
 }
 // Deteccion de servidores/datacenter: los bots (deofuscadores) corren en hosting, los jugadores en redes de casa o celular.
@@ -1226,9 +1226,10 @@ app.get('/s/:slug', async (req, res) => {
   const quien = ip(req);
   if (!isAdmin(req)) { const hh = req.headers; const ent = { ip: quien,  t: new Date().toISOString(), slug: clean(req.params.slug, 40), ua: String(hh['user-agent'] || '').slice(0, 160), accept: String(hh.accept || '').slice(0, 60), cabeceras: Object.keys(hh).filter((k) => !/^(x-forwarded|x-real|cf-|x-render|rndr|host|connection|via|true-client)/i.test(k)).join(', ').slice(0, 300) }; hdrLog.unshift(ent); if (hdrLog.length > 40) hdrLog.pop(); req._ent = ent; }
   const bloqueado = segBloq.get(quien);
-  let razon = isAdmin(req) ? '' : (bloqueado && bloqueado > Date.now() ? 'bloqueado' : esNavegadorOHerramienta(req));
+  const ipsOk = String(env.SEG_IPS_OK || '').split(',').map((x) => x.trim()).filter(Boolean);   // tus IPs de confianza (Render: SEG_IPS_OK=ip1,ip2)
+  let razon = (isAdmin(req) || ipsOk.includes(quien)) ? '' : (bloqueado && bloqueado > Date.now() ? 'bloqueado' : esNavegadorOHerramienta(req));
   let inf = null;
-  if (!razon && !isAdmin(req)) {
+  if (!razon && !isAdmin(req) && !ipsOk.includes(quien)) {
     inf = await infoIp(quien);
     if (inf && (inf.hosting === true || (env.SEG_PROXY === '1' && inf.proxy === true))) razon = inf.hosting === true ? 'datacenter' : 'proxy';
   }
@@ -1240,7 +1241,7 @@ app.get('/s/:slug', async (req, res) => {
       postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien abrió un loader fuera de Roblox. No se bloqueó su IP.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: String(razon), inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }] }] });
     }
     if (/text\/html/i.test(String(req.headers.accept || ''))) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(PAGINA_NO); }
-    return res.type('text/plain; charset=utf-8').send('-- No estas autorizado');
+    return res.type('text/plain; charset=utf-8').send('-- No estas autorizado' + (env.SEG_DIAG === '1' ? ' [diag: ' + razon + ' | ip ' + quien + ' | ua ' + clean(req.headers['user-agent'], 80).replace(/[\r\n]/g, ' ') + ']' : ''));
   }
   res.type('text/plain; charset=utf-8').setHeader('Cache-Control', 'no-store');
   const slug = req.params.slug;
