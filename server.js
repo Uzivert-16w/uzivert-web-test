@@ -1232,22 +1232,12 @@ app.get('/s/:slug', async (req, res) => {
     inf = await infoIp(quien);
     if (inf && (inf.hosting === true || (env.SEG_PROXY === '1' && inf.proxy === true))) razon = inf.hosting === true ? 'datacenter' : 'proxy';
   }
-  // Rafaga de reintentos: los bots, al ser bloqueados desde un servidor, reintentan en segundos con otra IP (proxy residencial) y otro User-Agent.
-  // Si un pedido del mismo loader llega de otra IP pocos segundos despues de uno bloqueado, tambien se rechaza y esa IP se bloquea.
-  if (!isAdmin(req)) {
-    const sl = clean(req.params.slug, 40), ult = segUltBloq.get(sl);
-    if (razon === 'datacenter' || razon === 'proxy') segUltBloq.set(sl, { t: Date.now(), ip: quien });
-    else if (!razon && ult && Date.now() - ult.t < 8000 && ult.ip !== quien && env.SEG_REINTENTO !== '0') {
-      razon = 'reintento'; segBloq.set(quien, Date.now() + 3600e3); audit(req, 'IP bloqueada (reintento tras bloqueo)', quien + ' /s/' + sl);
-    }
-  }
   if (req._ent) { req._ent.res = razon || 'paso'; if (inf) { req._ent.red = String(inf.isp || '').slice(0, 40) + ' | ' + String(inf.as || '').slice(0, 30); req._ent.hosting = inf.hosting; req._ent.proxy = inf.proxy; req._ent.movil = inf.mobile; } else req._ent.red = 'sin datos'; }
   if (razon) {
     res.status(403).setHeader('Cache-Control', 'no-store');
-    if (razon !== 'bloqueado' && limited('seg:' + quien, 8, 10 * 60e3)) {   // 8 intentos en 10 min: bloqueo de 1 hora y aviso
-      segBloq.set(quien, Date.now() + 3600e3); audit(req, 'IP bloqueada (auto)', quien + ' /s/' + clean(req.params.slug, 40));
-      console.warn('[seguridad] IP bloqueada por insistir en /s/' + req.params.slug + ':', quien);
-      postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien insistió en abrir un loader fuera de Roblox. Se bloqueó su IP por 1 hora.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: razon, inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }, { name: 'User-Agent', value: '`' + clean(req.headers['user-agent'], 150).replace(/`/g, "'") + '`' }], timestamp: new Date().toISOString() }] }).catch(() => {});
+    if (razon !== 'bloqueado' && !limited('segaviso:' + quien, 1, 3600e3)) {   // solo aviso (1 por IP/hora), NUNCA bloquea
+      audit(req, 'Acceso sospechoso al loader', quien + ' /s/' + clean(req.params.slug, 40));
+      postWebhook(SEG_WEBHOOK, { username: SITE_NAME + ' | Seguridad', embeds: [{ title: 'Intento de acceso al loader', color: 0xed4245, description: 'Alguien abrió un loader fuera de Roblox. No se bloqueó su IP.', fields: [{ name: 'Loader', value: '`' + clean(req.params.slug, 40) + '`', inline: true }, { name: 'Tipo', value: String(razon), inline: true }, { name: 'IP', value: '`' + quien + '`', inline: true }] }] });
     }
     if (/text\/html/i.test(String(req.headers.accept || ''))) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(PAGINA_NO); }
     return res.type('text/plain; charset=utf-8').send('-- No estas autorizado');
