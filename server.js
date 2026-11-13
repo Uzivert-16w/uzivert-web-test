@@ -1200,6 +1200,28 @@ function luaStr(v) { return '"' + String(v == null ? '' : v).replace(/[\\"\r\n]/
 // Registro temporal de cabeceras (solo en memoria, ultimas 40): sirve para ver que manda un ejecutor real y que manda un bot
 const hdrLog = [];
 app.get('/api/admin/cabeceras', adminOnly, (req, res) => res.json(hdrLog));
+// Entrega en dos pasos (anti bots que solo descargan el link): el link que pegan los jugadores devuelve un archivo chico con un codigo
+// de un solo uso; el loader real solo se entrega cuando ese archivo, ya dentro del juego, devuelve el codigo con datos de Roblox.
+// Se apaga con SEG_ETAPAS=0 en Render. Solo aplica a los loaders (los archivos que contienen UZ_ESTADO_URL).
+const segNonce = new Map();   // codigo -> { t, slug }
+setInterval(() => { const n = Date.now(); for (const [k, v] of segNonce) if (n - v.t > 60e3) segNonce.delete(k); }, 30e3).unref();
+const DECOY_LUA = '-- Uzivert Hub: este enlace esta desactualizado. Copia el loadstring actual desde nuestro Discord.\nwarn("[Uzivert Hub] Enlace desactualizado. Copia el loadstring nuevo desde discord.gg/vHhERWcbXe")\n';
+function stubEtapa1(base, slug, k) {
+  return '-- Uzivert Hub\nlocal P = game:GetService("Players").LocalPlayer\n'
+    + 'local ok, src = pcall(function() return game:HttpGet(' + JSON.stringify(base + '/s/' + slug + '?k=' + k) + ' .. "&pl=" .. tostring(game.PlaceId) .. "&jb=" .. tostring(game.JobId) .. "&us=" .. tostring(P and P.UserId or 0)) end)\n'
+    + 'if not ok or type(src) ~= "string" or #src < 20 then warn("[Uzivert Hub] No se pudo conectar. Intenta de nuevo.") return end\n'
+    + 'local f, e = loadstring(src)\nif not f then warn("[Uzivert Hub] " .. tostring(e)) return end\nf()\n';
+}
+function etapaOk(req, slug) {
+  const q = req.query || {};
+  const k = String(q.k || '');
+  const n = segNonce.get(k);
+  if (!n) return false;
+  segNonce.delete(k);                                   // un solo uso
+  if (n.slug !== slug || Date.now() - n.t > 30e3) return false;
+  if (!/^\d{1,15}$/.test(String(q.pl || '')) || !/^[1-9]\d{0,15}$/.test(String(q.us || '')) || !/^[0-9a-fA-F-]{0,40}$/.test(String(q.jb || ''))) return false;
+  return true;
+}
 app.get('/s/:slug', async (req, res) => {
   const quien = ip(req);
   if (!isAdmin(req)) { const hh = req.headers; const ent = { ip: quien,  t: new Date().toISOString(), slug: clean(req.params.slug, 40), ua: String(hh['user-agent'] || '').slice(0, 160), accept: String(hh.accept || '').slice(0, 60), cabeceras: Object.keys(hh).filter((k) => !/^(x-forwarded|x-real|cf-|x-render|rndr|host|connection|via|true-client)/i.test(k)).join(', ').slice(0, 300) }; hdrLog.unshift(ent); if (hdrLog.length > 40) hdrLog.pop(); req._ent = ent; }
@@ -1237,12 +1259,26 @@ app.get('/s/:slug', async (req, res) => {
     const meta = (await loadIndex()).find((s) => s.slug === slug);
     if (!meta || (meta.estado !== 'activo' && meta.estado !== 'enlace')) return res.status(404).send('-- no encontrado');
     if (meta.situacion === 'mant' || meta.situacion === 'caido') return res.send(meta.cartel === 'costado' ? luaMantCostado(meta.name, loaderUrl(baseUrl(req), meta)) : luaMantenimiento(loaderUrl(baseUrl(req), meta)));
-    if (!isAdmin(req)) contarEjec(slug, quien);
+    let code;
     const c = cache.get(slug);
-    if (c && Date.now() - c.t < 30e3) return res.send(c.code);
-    const code = await store.read(`scripts/${slug}.lua`);
-    if (code == null) return res.status(404).send('-- no encontrado');
-    cache.set(slug, { t: Date.now(), code });
+    if (c && Date.now() - c.t < 30e3) code = c.code;
+    else {
+      code = await store.read(`scripts/${slug}.lua`);
+      if (code == null) return res.status(404).send('-- no encontrado');
+      cache.set(slug, { t: Date.now(), code });
+    }
+    if (env.SEG_ETAPAS !== '0' && !isAdmin(req) && String(code).includes('UZ_ESTADO_URL')) {
+      if (!req.query || !req.query.k) {
+        const k = require('crypto').randomBytes(12).toString('hex');
+        if (segNonce.size > 20000) segNonce.clear();
+        segNonce.set(k, { t: Date.now(), slug });
+        if (req._ent) req._ent.res = 'etapa1';
+        return res.send(stubEtapa1(baseUrl(req), slug, k));
+      }
+      if (!etapaOk(req, slug)) { if (req._ent) req._ent.res = 'etapa2-rechazada'; return res.send(DECOY_LUA); }
+      if (req._ent) req._ent.res = 'etapa2-ok';
+    }
+    if (!isAdmin(req)) contarEjec(slug, quien);
     res.send(code);
   } catch (e) { res.status(502).send('-- error temporal'); }
 });
