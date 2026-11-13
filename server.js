@@ -1140,6 +1140,7 @@ function esNavegadorOHerramienta(req) {
 // Deteccion de servidores/datacenter: los bots (deofuscadores) corren en hosting, los jugadores en redes de casa o celular.
 // Consulta ip-api.com (gratis) y guarda el resultado 6 h. Si no responde, deja pasar (no molesta a jugadores).
 // Se apaga con la variable SEG_HOSTING=0 en Render.
+const segUltBloq = new Map();   // slug -> { t, ip } ultimo pedido bloqueado por servidor/proxy
 const hostCache = new Map();   // ip -> { info, t }
 async function infoIp(ipx) {
   if (env.SEG_HOSTING === '0' || !ipx || /^(::1|127\.|10\.|192\.168\.)/.test(ipx)) return null;
@@ -1208,6 +1209,15 @@ app.get('/s/:slug', async (req, res) => {
   if (!razon && !isAdmin(req)) {
     inf = await infoIp(quien);
     if (inf && (inf.hosting === true || (env.SEG_PROXY === '1' && inf.proxy === true))) razon = inf.hosting === true ? 'datacenter' : 'proxy';
+  }
+  // Rafaga de reintentos: los bots, al ser bloqueados desde un servidor, reintentan en segundos con otra IP (proxy residencial) y otro User-Agent.
+  // Si un pedido del mismo loader llega de otra IP pocos segundos despues de uno bloqueado, tambien se rechaza y esa IP se bloquea.
+  if (!isAdmin(req)) {
+    const sl = clean(req.params.slug, 40), ult = segUltBloq.get(sl);
+    if (razon === 'datacenter' || razon === 'proxy') segUltBloq.set(sl, { t: Date.now(), ip: quien });
+    else if (!razon && ult && Date.now() - ult.t < 8000 && ult.ip !== quien && env.SEG_REINTENTO !== '0') {
+      razon = 'reintento'; segBloq.set(quien, Date.now() + 3600e3); audit(req, 'IP bloqueada (reintento tras bloqueo)', quien + ' /s/' + sl);
+    }
   }
   if (req._ent) { req._ent.res = razon || 'paso'; if (inf) { req._ent.red = String(inf.isp || '').slice(0, 40) + ' | ' + String(inf.as || '').slice(0, 30); req._ent.hosting = inf.hosting; req._ent.proxy = inf.proxy; req._ent.movil = inf.mobile; } else req._ent.red = 'sin datos'; }
   if (razon) {
