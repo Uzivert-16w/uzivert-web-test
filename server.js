@@ -1628,6 +1628,31 @@ async function dcScriptLock(msg, botId, cerrar) {                  // pone TODOS
   audit(null, 'scripts: ' + (cerrar ? 'todos en mantenimiento' : 'todos funcionando'), 'discord ' + msg.author.id + ' (' + cambia + ' de ' + l.length + ')');
   await enviar(cerrar ? '🔒' : '🔓');
 }
+const dcUnoRe = /^(lock|bloquear|mantenimiento|unlock|desbloquear|funcionando)\s+(scripts?|hub)\b\s*(.*)$/i;
+function dcSlugDe(clave) {                                          // clave: hub | duelos | universal -> slug (por el alias del loader oficial)
+  const m = String(VX_LOADERS[clave] || '').match(/HttpGet\("([^"]+)"\)/);
+  let ruta = ''; try { ruta = new URL(m[1]).pathname.replace(/^\/+|\/+$/g, '').toLowerCase(); } catch {}
+  return (ruta && aliasMap.get(ruta)) || '';
+}
+async function dcScriptUno(msg, botId, cerrar, quiereHub, resto) {   // bloquea / desbloquea SOLO un script (lo pone en mantenimiento o funcionando)
+  const enviar = (c) => dcApi('POST', `/channels/${msg.channel_id}/messages`, { content: c, allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }).catch(() => {});
+  if (!msg.guild_id) return enviar('Ese comando solo funciona dentro de un servidor.');
+  if (!(await dcEsAdmin(msg))) return enviar('No tienes permiso para eso.');
+  const l = await loadIndex();
+  const t = vxNorm(resto).replace(/\b(el|la|de|del|script|scripts|loader)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  let x = null, nombre = '';
+  if (quiereHub && (!t || /^(grande|principal|5 juegos|cinco juegos|oficial)$/.test(t))) { x = l.find((y) => y.slug === dcSlugDe('hub')); nombre = 'el hub grande'; }
+  else if (/duelo/.test(t)) { x = l.find((y) => y.slug === dcSlugDe('duelos')); nombre = 'Duelos'; }
+  else if (/univers/.test(t)) { x = l.find((y) => y.slug === dcSlugDe('universal')); nombre = 'Universal'; }
+  else if (t) { const c = l.filter((y) => vxNorm([y.slug, y.name, y.alias].join(' ')).includes(t)); if (c.length === 1) { x = c[0]; nombre = x.name; } else if (c.length > 1) return enviar('Hay varios que coinciden: ' + c.map((y) => '`' + y.name + '`').join(', ') + '. Sé más específico.'); }
+  if (!x) return enviar('No encontré ese script. Prueba con `duelos`, `universal` o `hub grande`. Para todos a la vez usa `Vertix script lock`.');
+  const nuevoEstado = cerrar ? 'mant' : 'ok';
+  const antes = x.situacion || 'ok';
+  x.situacion = nuevoEstado;
+  await saveIndex(l);
+  audit(null, 'script ' + x.slug + ': ' + (cerrar ? 'en mantenimiento' : 'funcionando'), 'discord ' + msg.author.id + ' (antes: ' + antes + ')');
+  await enviar((cerrar ? '🔒 ' : '🔓 ') + (antes === nuevoEstado ? 'Ya estaba así: ' : '') + nombre + (cerrar ? ' en mantenimiento.' : ' funcionando.'));
+}
 async function dcLock(msg, cerrar) {
   const gid = msg.guild_id, ch = msg.channel_id;
   const c = await dcApi('GET', '/channels/' + ch);
@@ -1727,13 +1752,15 @@ async function dcComando(msg, botId, cmd, resto) {                 // devuelve t
   return true;
 }
 const DC_AYUDA = { embeds: [{ title: 'Comandos de Vertix', color: 0x5865f2, description:
-  'Escribe **Vertix** seguido de lo que necesites.\n\n`Vertix <pregunta>`  Pregúntame lo que quieras sobre Uzivert Hub o lo que sea.\n`Vertix user <usuario Roblox>`  Muestra el perfil: verificación en la página, inventario, amigos y más.\n`Vertix comandos`  Muestra esta lista.\n\n**Solo admins**\n`Vertix lock`  Bloquea el canal.\n`Vertix unlock`  Lo desbloquea.\n`Vertix ban <@usuario o ID>`  Banea del servidor.\n`Vertix unban <ID>`  Quita el baneo.\n`Vertix script lock`  Pone TODOS los scripts de la página en mantenimiento.\n`Vertix script unlock`  Los vuelve a poner en funcionamiento.', footer: { text: 'Vertix | Uzivert Hub' } }] };
+  'Escribe **Vertix** seguido de lo que necesites.\n\n`Vertix <pregunta>`  Pregúntame lo que quieras sobre Uzivert Hub o lo que sea.\n`Vertix user <usuario Roblox>`  Muestra el perfil: verificación en la página, inventario, amigos y más.\n`Vertix comandos`  Muestra esta lista.\n\n**Solo admins**\n`Vertix lock`  Bloquea el canal.\n`Vertix unlock`  Lo desbloquea.\n`Vertix ban <@usuario o ID>`  Banea del servidor.\n`Vertix unban <ID>`  Quita el baneo.\n`Vertix script lock`  Pone TODOS los scripts de la página en mantenimiento.\n`Vertix script unlock`  Los vuelve a poner en funcionamiento.\n`Vertix lock script duelos`  Bloquea solo Duelos (también `universal`).\n`Vertix lock hub grande`  Bloquea solo el hub grande.\n`Vertix unlock script duelos`  Lo vuelve a abrir (igual con `universal` y `hub grande`).', footer: { text: 'Vertix | Uzivert Hub' } }] };
 async function dcMensaje(msg, botId) {
   if (!msg || !msg.author || msg.author.bot || !msg.content && !(msg.attachments || []).length) return;
   if (DC_CANALES.length && !DC_CANALES.includes(String(msg.channel_id))) return;
   const texto = dcTextoDe(msg, botId);
   if (texto === null) return;
   if (dcAyudaRe.test(texto.trim()) && !(msg.attachments || []).length) { await dcApi('POST', `/channels/${msg.channel_id}/messages`, Object.assign({ allowed_mentions: { parse: [] }, message_reference: { message_id: msg.id, fail_if_not_exists: false } }, DC_AYUDA)); return; }
+  const mu = dcUnoRe.exec(texto.trim());
+  if (mu && !(msg.attachments || []).length) { try { await dcScriptUno(msg, botId, /^(lock|bloquear|mantenimiento)$/i.test(mu[1]), /^hub$/i.test(mu[2]), mu[3]); } catch (e) { console.error('[discord] script uno', e.message); } return; }
   const ms = dcScriptRe.exec(texto.trim());
   if (ms && !(msg.attachments || []).length) { try { await dcScriptLock(msg, botId, /^(lock|bloquear|mantenimiento)$/i.test(ms[1])); } catch (e) { console.error('[discord] script lock', e.message); } return; }
   const mc = dcCmdRe.exec(texto.trim());
